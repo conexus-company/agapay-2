@@ -11,6 +11,9 @@ import { AuthColors } from '@/constants/auth-theme';
 import { EGOV_SSO_AUTHORIZE_URL, getEgovLivenessRedirectUri, getEgovSsoRedirectUri } from '@/constants/egov-sso';
 import { useAuth } from '@/contexts/auth-context';
 import { getVerificationStatus, startVerification, type VerificationStart } from '@/lib/egov-sso-client';
+import { EGOV_SSO_AUTHORIZE_URL, getEgovSsoRedirectUri } from '@/constants/egov-sso';
+import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
+import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
 import type { ApiResult } from '@/lib/api-result';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -40,7 +43,7 @@ function describeFailure(step: 'start' | 'status', result: ApiResult<unknown>): 
 }
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { beginSetup } = useHealthProfileSetup();
   const [state, setState] = useState<FlowState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [verification, setVerification] = useState<VerificationStart | null>(null);
@@ -160,6 +163,12 @@ export default function LoginScreen() {
     setErrorMessage(null);
     setState('idle');
   }, []);
+    setState('success');
+    setTimeout(() => {
+      beginSetup({ sessionToken: tokenResult.data.sessionToken, profile: profileResult.data });
+      router.push('/health-profile-setup');
+    }, 700);
+  }, [beginSetup]);
 
   const isBusy = state === 'authorizing' || state === 'starting' || state === 'success';
 

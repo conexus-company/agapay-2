@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -7,6 +8,8 @@ import { AuthColors } from '@/constants/auth-theme';
 import { getEgovLivenessRedirectUri } from '@/constants/egov-sso';
 import { useAuth } from '@/contexts/auth-context';
 import { getVerificationStatus, startVerification } from '@/lib/egov-sso-client';
+import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
+import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
 
 type RunState =
   | { status: 'idle' }
@@ -22,7 +25,7 @@ type RunState =
  * orchestration flow without going through the real WebBrowser SSO redirect.
  */
 export default function DevLoginScreen() {
-  const { signIn } = useAuth();
+  const { beginSetup } = useHealthProfileSetup();
   const [code, setCode] = useState('');
   const [sessionIdInput, setSessionIdInput] = useState('');
   const [result, setResult] = useState<RunState>({ status: 'idle' });
@@ -202,7 +205,10 @@ export default function DevLoginScreen() {
               onPress={() => {
                 const session = pendingSession;
                 setPendingSession(null);
-                if (session) signIn(session);
+                if (session) {
+                  beginSetup(session);
+                  router.push('/health-profile-setup');
+                }
               }}
               accessibilityRole="button"
               accessibilityLabel="Continue to Home"
