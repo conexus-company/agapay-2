@@ -24,15 +24,8 @@ function upstreamFailureResponse(result: ApiResult<unknown>) {
 export async function POST(request: Request) {
   const config = getEgovSsoConfig();
   if (!config) {
-    console.warn('eGov SSO config missing — returning mock citizen profile for testing');
-    return Response.json({
-      data: {
-        id: 'test-citizen-001',
-        first_name: 'Test',
-        last_name: 'User',
-        birth_date: '1990-01-01',
-      },
-    });
+    console.error('eGov SSO profile route called with missing env config (EGOV_SSO_BASE_URL/PARTNER_CODE/PARTNER_SECRET)');
+    return Response.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
   const authHeader = request.headers.get('authorization') ?? '';

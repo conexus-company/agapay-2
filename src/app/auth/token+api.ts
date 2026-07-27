@@ -24,8 +24,8 @@ function upstreamFailureResponse(result: ApiResult<unknown>) {
 export async function POST(request: Request) {
   const config = getEgovSsoConfig();
   if (!config) {
-    console.warn('eGov SSO config missing — returning mock session token for testing');
-    return Response.json({ session_token: 'mock-session-token-dev-only' });
+    console.error('eGov SSO token route called with missing env config (EGOV_SSO_BASE_URL/PARTNER_CODE/PARTNER_SECRET)');
+    return Response.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
   const body = await parseJsonBody(request);
