@@ -1,4 +1,4 @@
-import { parseJsonBody, type ApiResult } from '@/lib/api-result';
+import { parseJsonBody, resilientFetch, type ApiResult } from '@/lib/api-result';
 
 const SSO_SCOPE = 'SSO_AUTHENTICATION';
 
@@ -24,23 +24,31 @@ export async function exchangeCodeForToken(
   config: EgovSsoConfig,
   exchangeCode: string
 ): Promise<ApiResult<string>> {
+  console.log('[egov-sso] exchanging code for token');
+
   let response: Response;
   try {
-    response = await fetch(`${config.baseUrl}/api/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'agapay-backend/1.0' },
-      body: JSON.stringify({
-        exchange_code: exchangeCode,
-        scope: SSO_SCOPE,
-        partner_code: config.partnerCode,
-        partner_secret: config.partnerSecret,
-      }),
-    });
-  } catch {
+    response = await resilientFetch(
+      `${config.baseUrl}/api/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'agapay-backend/1.0' },
+        body: JSON.stringify({
+          exchange_code: exchangeCode,
+          scope: SSO_SCOPE,
+          partner_code: config.partnerCode,
+          partner_secret: config.partnerSecret,
+        }),
+      },
+      'egov-sso:token'
+    );
+  } catch (error) {
+    console.error('[egov-sso] token exchange network failure:', error);
     return { ok: false, kind: 'network_error' };
   }
 
   const body = await parseJsonBody(response);
+  console.log('[egov-sso] token exchange response:', response.status);
 
   if (!response.ok) {
     return { ok: false, kind: 'upstream_error', status: response.status, body };
@@ -66,17 +74,25 @@ export async function callSsoAuthentication(
   config: Pick<EgovSsoConfig, 'baseUrl'>,
   accessToken: string
 ): Promise<ApiResult<unknown>> {
+  console.log('[egov-sso] fetching sso_authentication profile');
+
   let response: Response;
   try {
-    response = await fetch(`${config.baseUrl}/api/partner/sso_authentication`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'User-Agent': 'agapay-backend/1.0' },
-    });
-  } catch {
+    response = await resilientFetch(
+      `${config.baseUrl}/api/partner/sso_authentication`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'User-Agent': 'agapay-backend/1.0' },
+      },
+      'egov-sso:profile'
+    );
+  } catch (error) {
+    console.error('[egov-sso] sso_authentication network failure:', error);
     return { ok: false, kind: 'network_error' };
   }
 
   const body = await parseJsonBody(response);
+  console.log('[egov-sso] sso_authentication response:', response.status);
 
   if (!response.ok) {
     return { ok: false, kind: 'upstream_error', status: response.status, body };
