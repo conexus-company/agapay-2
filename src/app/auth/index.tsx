@@ -29,7 +29,7 @@ import { useHealthProfileSetup } from "@/contexts/health-profile-setup-context";
 import type { ApiResult } from "@/lib/api-result";
 import {
   getVerificationStatus,
-  startVerification
+  startVerification,
 } from "@/lib/egov-sso-client";
 
 WebBrowser.maybeCompleteAuthSession();
