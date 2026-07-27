@@ -1,5 +1,11 @@
-import AppTabs from '@/components/app-tabs';
+import { Stack } from 'expo-router';
 
 export default function AppLayout() {
-  return <AppTabs />;
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="health-id" />
+      <Stack.Screen name="coming-soon" />
+    </Stack>
+  );
 }
