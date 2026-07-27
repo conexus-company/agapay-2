@@ -15,9 +15,9 @@ import type { ApiResult } from '@/lib/api-result';
 
 WebBrowser.maybeCompleteAuthSession();
 
-type FlowState = 'idle' | 'authorizing' | 'starting' | 'verifying' | 'checking' | 'success' | 'error';
+type FlowState = 'idle' | 'authorizing' | 'starting' | 'success' | 'error';
 
-function describeFailure(step: 'start' | 'status', result: ApiResult<unknown>): string {
+function describeFailure(result: ApiResult<unknown>): string {
   if (result.ok) {
     return 'Something went wrong. Please try again.';
   }
@@ -27,10 +27,10 @@ function describeFailure(step: 'start' | 'status', result: ApiResult<unknown>): 
   }
 
   if (result.kind === 'upstream_error') {
-    if (step === 'start' && result.status === 422) {
+    if (result.status === 422) {
       return 'This sign-in link has expired or was already used. Please start again.';
     }
-    if (step === 'start' && result.status === 403) {
+    if (result.status === 403) {
       return "We couldn't verify your eGov SSO credentials. Please try again.";
     }
     return 'Something went wrong on our end. Please try again in a moment.';
@@ -43,9 +43,6 @@ export default function LoginScreen() {
   const { beginSetup } = useHealthProfileSetup();
   const [state, setState] = useState<FlowState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [verification, setVerification] = useState<VerificationStart | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
   const ctaScale = useSharedValue(1);
   const ctaAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
 
@@ -80,9 +77,6 @@ export default function LoginScreen() {
 
   const runLogin = useCallback(async () => {
     setErrorMessage(null);
-    setStatusError(null);
-    setVerification(null);
-    setSessionId(null);
     setState('authorizing');
 
     const redirectUri = getEgovSsoRedirectUri();
@@ -107,7 +101,7 @@ export default function LoginScreen() {
 
     const startResult = await startVerification(exchangeCode, getEgovLivenessRedirectUri());
     if (!startResult.ok) {
-      setErrorMessage(describeFailure('start', startResult));
+      setErrorMessage(describeFailure(startResult));
       setState('error');
       return;
     }
@@ -204,72 +198,12 @@ export default function LoginScreen() {
           {state === 'success' && (
             <Animated.View entering={FadeIn.duration(250)} style={styles.statusRow}>
               <Text style={styles.successText} accessibilityLiveRegion="polite">
-                Identity verified — signing you in…
+                Signed in — setting up your profile…
               </Text>
             </Animated.View>
           )}
 
-          {(state === 'verifying' || state === 'checking') && (
-            <Animated.View entering={FadeIn.duration(200)} style={styles.verifyBlock}>
-              <Text style={styles.verifyTitle}>One more step: verify it&apos;s really you</Text>
-              <Text style={styles.verifySubtitle}>
-                Complete a quick face verification. This confirms your identity before we finish signing you in.
-              </Text>
-
-              {statusError && (
-                <Animated.View
-                  entering={FadeIn.duration(200)}
-                  exiting={FadeOut.duration(150)}
-                  style={styles.errorBanner}
-                  accessibilityRole="alert">
-                  <Text style={styles.errorText}>{statusError}</Text>
-                </Animated.View>
-              )}
-
-              <Pressable
-                onPress={openLivenessCheck}
-                disabled={state === 'checking'}
-                accessibilityRole="button"
-                accessibilityLabel="Open face verification"
-                accessibilityState={{ disabled: state === 'checking', busy: state === 'checking' }}
-                android_ripple={{ color: AuthColors.primaryPressed }}
-                style={({ pressed }) => [
-                  styles.ctaInner,
-                  pressed && styles.ctaPressed,
-                  state === 'checking' && styles.ctaDisabled,
-                ]}>
-                <Text style={styles.ctaText}>Open Face Verification</Text>
-              </Pressable>
-
-              {statusError && sessionId && (
-                <Pressable
-                  onPress={manualCheckStatus}
-                  disabled={state === 'checking'}
-                  accessibilityRole="button"
-                  accessibilityLabel="Retry checking verification status"
-                  android_ripple={{ color: AuthColors.border }}
-                  style={styles.retry}>
-                  {state === 'checking' ? (
-                    <ActivityIndicator color={AuthColors.primary} />
-                  ) : (
-                    <Text style={styles.retryText}>Retry — Check status</Text>
-                  )}
-                </Pressable>
-              )}
-
-              <Pressable
-                onPress={startOver}
-                disabled={state === 'checking'}
-                accessibilityRole="button"
-                accessibilityLabel="Start over from the beginning"
-                android_ripple={{ color: AuthColors.border }}
-                style={styles.startOver}>
-                <Text style={styles.startOverText}>Start over</Text>
-              </Pressable>
-            </Animated.View>
-          )}
-
-          {state !== 'verifying' && state !== 'checking' && state !== 'success' && (
+          {state !== 'success' && (
             <Animated.View
               entering={FadeIn.duration(200)}
               exiting={FadeOut.duration(150)}
@@ -392,9 +326,4 @@ const styles = StyleSheet.create({
   consent: { color: AuthColors.textSecondary, fontSize: 12, lineHeight: 18 },
   devLink: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   devLinkText: { color: AuthColors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
-  verifyBlock: { gap: 12 },
-  verifyTitle: { color: AuthColors.text, fontSize: 16, fontWeight: '700' },
-  verifySubtitle: { color: AuthColors.textSecondary, fontSize: 13, lineHeight: 18 },
-  startOver: { minHeight: 32, alignItems: 'center', justifyContent: 'center' },
-  startOverText: { color: AuthColors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
 });
