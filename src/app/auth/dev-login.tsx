@@ -6,10 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
 import { getEgovLivenessRedirectUri } from '@/constants/egov-sso';
-import { useAuth } from '@/contexts/auth-context';
-import { getVerificationStatus, startVerification } from '@/lib/egov-sso-client';
 import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
-import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
+import { getVerificationStatus, startVerification } from '@/lib/egov-sso-client';
 
 type RunState =
   | { status: 'idle' }

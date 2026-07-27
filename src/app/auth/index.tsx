@@ -9,11 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
 import { EGOV_SSO_AUTHORIZE_URL, getEgovLivenessRedirectUri, getEgovSsoRedirectUri } from '@/constants/egov-sso';
-import { useAuth } from '@/contexts/auth-context';
-import { getVerificationStatus, startVerification, type VerificationStart } from '@/lib/egov-sso-client';
-import { EGOV_SSO_AUTHORIZE_URL, getEgovSsoRedirectUri } from '@/constants/egov-sso';
 import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
-import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
+import { getVerificationStatus, startVerification, type VerificationStart } from '@/lib/egov-sso-client';
 import type { ApiResult } from '@/lib/api-result';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -74,10 +71,11 @@ export default function LoginScreen() {
       console.log('[login] verification completed — signing in');
       setState('success');
       setTimeout(() => {
-        signIn({ profile, everify: statusResult.data.everify });
+        beginSetup({ profile, everify: statusResult.data.everify });
+        router.push('/health-profile-setup');
       }, 700);
     },
-    [signIn]
+    [beginSetup]
   );
 
   const runLogin = useCallback(async () => {
@@ -163,12 +161,6 @@ export default function LoginScreen() {
     setErrorMessage(null);
     setState('idle');
   }, []);
-    setState('success');
-    setTimeout(() => {
-      beginSetup({ sessionToken: tokenResult.data.sessionToken, profile: profileResult.data });
-      router.push('/health-profile-setup');
-    }, 700);
-  }, [beginSetup]);
 
   const isBusy = state === 'authorizing' || state === 'starting' || state === 'success';
 

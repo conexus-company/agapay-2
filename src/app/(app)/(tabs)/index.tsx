@@ -10,7 +10,6 @@ import { BottomTabInset, Colors, Fonts, MaxContentWidth, Spacing } from '@/const
 import { useAuth } from '@/contexts/auth-context';
 import { createOrGetHealthProfile, type HealthProfile } from '@/lib/health-profile';
 import { clearHealthProfile, loadHealthProfile, saveHealthProfile } from '@/lib/health-profile-storage';
-import { fetchCitizenProfile } from '@/lib/egov-sso-client';
 
 // Dev-only debug panel below reuses the app-shell's own theme tokens — it's
 // not part of the citizen-facing identity flow, which uses AuthColors
@@ -157,23 +156,15 @@ export default function HomeScreen() {
 
       // No profile in local storage yet — this only happens for a session
       // that predates this feature (e.g. signed in before an app update).
-      // Re-fetch the citizen profile with the still-valid session token and
-      // create/reuse the health profile, same as the fresh-login flow.
-      const sessionToken = session?.sessionToken;
-      if (!sessionToken) {
+      // The citizen profile from eGov SSO is already on the auth session, so
+      // just create/reuse the health profile from it, same as the fresh-login flow.
+      const citizenProfile = session?.profile;
+      if (!citizenProfile) {
         if (!cancelled) setIsLoading(false);
         return;
       }
 
-      const profileResult = await fetchCitizenProfile(sessionToken);
-      if (cancelled) return;
-      if (!profileResult.ok) {
-        setBackfillError("We couldn't load your AGAPAY profile. Check your connection and try again.");
-        setIsLoading(false);
-        return;
-      }
-
-      const healthResult = await createOrGetHealthProfile(profileResult.data);
+      const healthResult = await createOrGetHealthProfile(citizenProfile);
       if (cancelled) return;
       if (!healthResult.ok) {
         setBackfillError("We couldn't set up your AGAPAY profile right now. Please try again.");
@@ -192,7 +183,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [session?.sessionToken, attempt]);
+  }, [session?.profile, attempt]);
 
   return (
     <View style={[styles.container, { backgroundColor: AuthColors.background }]}>
