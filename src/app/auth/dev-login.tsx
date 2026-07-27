@@ -36,11 +36,17 @@ export default function DevLoginScreen() {
     const trimmed = code.trim();
     if (!trimmed) return;
     setShowDetails(false);
-    setResult({ status: 'starting' });
+    setResult({ status: "starting" });
 
-    const startResult = await startVerification(trimmed, getEgovLivenessRedirectUri());
+    const startResult = await startVerification(
+      trimmed,
+      getEgovLivenessRedirectUri(),
+    );
     if (!startResult.ok) {
-      setResult({ status: 'error', message: `Start failed: ${JSON.stringify(startResult)}` });
+      setResult({
+        status: "error",
+        message: `Start failed: ${JSON.stringify(startResult)}`,
+      });
       return;
     }
 
@@ -73,15 +79,16 @@ export default function DevLoginScreen() {
             disabled={result.status === 'starting'}
             accessibilityRole="button"
             accessibilityLabel="Start verification"
-            style={styles.button}>
-            {result.status === 'starting' ? (
+            style={styles.button}
+          >
+            {result.status === "starting" ? (
               <ActivityIndicator color={AuthColors.onPrimary} />
             ) : (
               <Text style={styles.buttonText}>Start verification</Text>
             )}
           </Pressable>
 
-          {result.status === 'error' && (
+          {result.status === "error" && (
             <Animated.View entering={FadeIn.duration(200)}>
               <Text style={styles.error}>{result.message}</Text>
             </Animated.View>
@@ -98,22 +105,32 @@ export default function DevLoginScreen() {
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Use this identity and continue into the app"
-                style={[styles.button, styles.useButton]}>
-                <Text style={styles.buttonText}>Use this identity &amp; continue</Text>
+                style={[styles.button, styles.useButton]}
+              >
+                <Text style={styles.buttonText}>
+                  Use this identity &amp; continue
+                </Text>
               </Pressable>
 
               <Pressable
                 onPress={() => setShowDetails((visible) => !visible)}
                 accessibilityRole="button"
-                accessibilityLabel={showDetails ? 'Hide raw response' : 'Show raw response'}
-                style={styles.toggle}>
+                accessibilityLabel={
+                  showDetails ? "Hide raw response" : "Show raw response"
+                }
+                style={styles.toggle}
+              >
                 <Text style={styles.toggleText}>
-                  {showDetails ? 'Hide raw response ▲' : 'Show raw response ▼'}
+                  {showDetails ? "Hide raw response ▲" : "Show raw response ▼"}
                 </Text>
               </Pressable>
 
               {showDetails && (
-                <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.details}>
+                <Animated.View
+                  entering={FadeIn.duration(180)}
+                  exiting={FadeOut.duration(120)}
+                  style={styles.details}
+                >
                   <Text style={styles.resultLabel}>profile</Text>
                   <Text selectable style={styles.resultText}>
                     {JSON.stringify(result.profile, null, 2)}
@@ -132,7 +149,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: AuthColors.background },
   safeArea: { flex: 1 },
   content: { padding: 24, gap: 16 },
-  title: { color: AuthColors.text, fontSize: 22, fontWeight: '700' },
+  title: { color: AuthColors.text, fontSize: 22, fontWeight: "700" },
   subtitle: { color: AuthColors.textSecondary, fontSize: 13, lineHeight: 18 },
   input: {
     minHeight: 48,
@@ -142,18 +159,18 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.surface,
     color: AuthColors.text,
     paddingHorizontal: 14,
-    fontFamily: 'monospace',
+    fontFamily: "monospace",
   },
   button: {
     minHeight: 48,
     borderRadius: 12,
     backgroundColor: AuthColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 16,
   },
   useButton: { marginTop: 0 },
-  buttonText: { color: AuthColors.onPrimary, fontSize: 15, fontWeight: '600' },
+  buttonText: { color: AuthColors.onPrimary, fontSize: 15, fontWeight: "600" },
   error: { color: AuthColors.danger, fontSize: 13 },
   resultBlock: {
     gap: 12,

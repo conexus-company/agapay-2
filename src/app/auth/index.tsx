@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthColors } from '@/constants/auth-theme';
 import { EGOV_SSO_AUTHORIZE_URL, getEgovLivenessRedirectUri, getEgovSsoRedirectUri } from '@/constants/egov-sso';
 import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
-import { getVerificationStatus, startVerification, type VerificationStart } from '@/lib/egov-sso-client';
+import { startVerification } from '@/lib/egov-sso-client';
 import type { ApiResult } from '@/lib/api-result';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -46,35 +46,11 @@ export default function LoginScreen() {
   const ctaScale = useSharedValue(1);
   const ctaAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
 
-  const checkStatus = useCallback(
-    async (flowId: string, sessionIdForCheck: string, profile: unknown) => {
-      console.log('[login] checking verification status…');
-      setState('checking');
-
-      const statusResult = await getVerificationStatus(flowId, sessionIdForCheck);
-      console.log('[login] status result:', JSON.stringify(statusResult));
-
-      if (!statusResult.ok) {
-        // A failed status check (often a transient sandbox network blip) does
-        // NOT invalidate the flow_id/session_id — stay on the verify step so
-        // the citizen can just retry, instead of forcing a full restart that
-        // would burn another single-use SSO exchange code.
-        setStatusError(describeFailure('status', statusResult));
-        setState('verifying');
-        return;
-      }
-
-      setStatusError(null);
-      console.log('[login] verification completed — signing in');
-      setState('success');
-      setTimeout(() => {
-        beginSetup({ profile, everify: statusResult.data.everify });
-        router.push('/health-profile-setup');
-      }, 700);
-    },
-    [beginSetup]
-  );
-
+  // Face Liveness + eVerify are temporarily disconnected from the sign-in
+  // flow (the eGov Face Liveness sandbox SDK hangs after capture) — eGov SSO
+  // alone is enough to reach the dashboard for now. Re-enabling later just
+  // means routing through the liveness step + verify/status check again
+  // before beginSetup(), same as this used to.
   const runLogin = useCallback(async () => {
     setErrorMessage(null);
     setState('authorizing');
@@ -106,55 +82,12 @@ export default function LoginScreen() {
       return;
     }
 
-    setVerification(startResult.data);
-    setState('verifying');
-  }, []);
-
-  const openLivenessCheck = useCallback(async () => {
-    if (!verification) return;
-    console.log('[login] opening face verification browser…');
-    // Mirrors the SSO step: openAuthSessionAsync auto-dismisses the browser
-    // and returns control to the app as soon as the hosted liveness SDK page
-    // redirects to our callback_url with the completed session_id.
-    const result = await WebBrowser.openAuthSessionAsync(
-      verification.liveness.url,
-      getEgovLivenessRedirectUri()
-    ).catch((error) => {
-      console.error('[login] openAuthSessionAsync threw:', error);
-      return null;
-    });
-    console.log('[login] face verification browser closed, result type:', result?.type);
-
-    if (!result || result.type !== 'success') {
-      return;
-    }
-
-    const params = Linking.parse(result.url).queryParams;
-    const newSessionId = params?.session_id;
-
-    if (typeof newSessionId !== 'string' || newSessionId.length === 0) {
-      setStatusError('Face verification was cancelled or failed. Please try again.');
-      setState('verifying');
-      return;
-    }
-
-    setSessionId(newSessionId);
-    checkStatus(verification.flowId, newSessionId, verification.profile);
-  }, [verification, checkStatus]);
-
-  const manualCheckStatus = useCallback(() => {
-    if (!verification || !sessionId) return;
-    console.log('[login] manual check-status tapped');
-    checkStatus(verification.flowId, sessionId, verification.profile);
-  }, [verification, sessionId, checkStatus]);
-
-  const startOver = useCallback(() => {
-    setVerification(null);
-    setSessionId(null);
-    setStatusError(null);
-    setErrorMessage(null);
-    setState('idle');
-  }, []);
+    setState('success');
+    setTimeout(() => {
+      beginSetup({ profile: startResult.data.profile, everify: null });
+      router.push('/health-profile-setup');
+    }, 700);
+  }, [beginSetup]);
 
   const isBusy = state === 'authorizing' || state === 'starting' || state === 'success';
 
