@@ -17,7 +17,9 @@ export function getEgovSsoConfig(): EgovSsoConfig | null {
     return null;
   }
 
-  return { baseUrl, partnerCode, partnerSecret };
+  // Strip a trailing slash so `${baseUrl}/api/token` never ends up with a
+  // double slash — the sandbox 404s on that instead of normalizing it.
+  return { baseUrl: baseUrl.replace(/\/+$/, ''), partnerCode, partnerSecret };
 }
 
 export async function exchangeCodeForToken(
