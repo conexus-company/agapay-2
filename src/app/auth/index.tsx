@@ -40,6 +40,7 @@ function describeFailure(result: ApiResult<unknown>): string {
 }
 
 export default function LoginScreen() {
+  const { signIn } = useAuth();
   const { beginSetup } = useHealthProfileSetup();
   const [state, setState] = useState<FlowState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

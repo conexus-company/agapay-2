@@ -99,36 +99,47 @@ function HomeHeader({ fullName }: { fullName: string | null }) {
 function HealthIdSummaryCard({ profile }: { profile: HealthProfile }) {
   return (
     <View style={styles.idCard}>
-      <View style={styles.idCardMain}>
+      <View style={styles.idCardTop}>
         <Text style={styles.idCardLabel}>DIGITAL HEALTH ID</Text>
-        <Text
-          style={styles.idCardName}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}>
-          {profile.full_name ?? 'AGAPAY Citizen'}
-        </Text>
-        <View style={styles.idCardNumberBlock}>
-          <Text style={styles.idCardSubLabel}>ID Number</Text>
-          <Text selectable style={styles.idCardNumber}>
-            {profile.health_id}
-          </Text>
+        <View style={styles.idCardBadgeRow}>
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={11} color="#FFFFFF" />
+            <Text style={styles.verifiedText}>Verified</Text>
+          </View>
+          <View style={styles.qrBadge}>
+            <Ionicons name="qr-code-outline" size={10} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.qrBadgeText}>QR</Text>
+          </View>
         </View>
       </View>
-      <View style={styles.idCardSide}>
-        <View style={styles.verifiedBadge}>
-          <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-          <Text style={styles.verifiedText}>Verified</Text>
-        </View>
-        <View style={styles.qrBadge}>
-          <Text style={styles.qrBadgeText}>QR Available</Text>
+
+      <View style={styles.idCardBottom}>
+        <View style={styles.idCardMain}>
+          <Text
+            style={styles.idCardName}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}>
+            {profile.full_name ?? 'AGAPAY Citizen'}
+          </Text>
+          <View style={styles.idCardNumberBlock}>
+            <Text style={styles.idCardSubLabel}>ID Number</Text>
+            <Text selectable style={styles.idCardNumber}>
+              {profile.health_id}
+            </Text>
+          </View>
         </View>
         <Pressable
           onPress={() => router.push('/health-id')}
           accessibilityRole="button"
           accessibilityLabel="View your full Digital Health ID and QR code"
-          style={({ pressed }) => [styles.viewIdButton, pressed && styles.pressed]}>
-          <Text style={styles.viewIdButtonText}>View ID</Text>
+          style={({ pressed }) => [
+            styles.viewIdButton,
+            pressed && styles.idCardPressed,
+          ]}>
+          <Ionicons name="id-card-outline" size={14} color={AuthColors.primary} />
+          <Text style={styles.viewIdButtonText}>View</Text>
+          <Ionicons name="chevron-forward" size={12} color={AuthColors.primary} />
         </Pressable>
       </View>
     </View>
@@ -396,15 +407,31 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   idCard: {
-    flexDirection: 'row',
     backgroundColor: AuthColors.primary,
     borderRadius: 20,
     padding: Spacing.four,
-    gap: Spacing.three,
+    gap: Spacing.two,
+    // Subtle shadow for depth
+    shadowColor: AuthColors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  idCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  idCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   idCardMain: {
     flex: 1,
     gap: Spacing.half,
+    marginRight: Spacing.two,
   },
   idCardLabel: {
     color: 'rgba(255,255,255,0.7)',
@@ -414,63 +441,75 @@ const styles = StyleSheet.create({
   },
   idCardName: {
     color: '#FFFFFF',
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '700',
   },
   idCardNumberBlock: {
-    marginTop: Spacing.three,
-    gap: 2,
+    marginTop: Spacing.one,
+    gap: 1,
   },
   idCardSubLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   idCardNumber: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
     fontFamily: 'monospace',
     letterSpacing: 0.5,
   },
-  idCardSide: {
-    alignItems: 'flex-end',
-    gap: Spacing.two,
+  idCardBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.half,
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: AuthColors.success,
     borderRadius: 999,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
   verifiedText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   qrBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 999,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
   qrBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
     fontWeight: '600',
   },
+  idCardPressed: {
+    opacity: 0.6,
+  },
   viewIdButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#FFFFFF',
     borderRadius: 999,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    marginTop: Spacing.one,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexShrink: 0,
   },
   viewIdButtonText: {
     color: AuthColors.primary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   servicesSection: {
@@ -509,6 +548,8 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     backgroundColor: '#EFF6FF',
     borderRadius: 16,
+    borderWidth: 0.5,
+    borderColor: '#BFDBFE',
     padding: Spacing.three,
   },
   aiIconCircle: {
