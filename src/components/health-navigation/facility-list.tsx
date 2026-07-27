@@ -11,7 +11,14 @@ function statusLabel(facility: Facility): string {
   return 'Hours unavailable';
 }
 
+function statusDotColor(facility: Facility): string {
+  if (facility.openStatus === 'open') return '#059669';
+  if (facility.openStatus === 'closed') return '#DC2626';
+  return AuthColors.textSecondary;
+}
+
 function FacilityRow({ facility, isLast }: { facility: Facility; isLast: boolean }) {
+  const dotColor = statusDotColor(facility);
   return (
     <View style={[styles.row, !isLast && styles.rowDivider]}>
       <View style={styles.rowIconCircle}>
@@ -21,11 +28,18 @@ function FacilityRow({ facility, isLast }: { facility: Facility; isLast: boolean
         <Text style={styles.rowName} numberOfLines={1}>
           {facility.name}
         </Text>
-        <Text style={styles.rowMeta}>
-          {facility.distanceKm.toFixed(1)} km away · {statusLabel(facility)}
-        </Text>
+        <View style={styles.rowMetaRow}>
+          <View style={styles.rowDistanceBadge}>
+            <Ionicons name="navigate-outline" size={11} color={AuthColors.textSecondary} />
+            <Text style={styles.rowDistanceText}>{facility.distanceKm.toFixed(1)} km</Text>
+          </View>
+          <View style={[styles.rowStatusDot, { backgroundColor: dotColor }]} />
+          <Text style={styles.rowStatusText}>{statusLabel(facility)}</Text>
+        </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={AuthColors.textSecondary} />
+      <View style={styles.rowAction}>
+        <Ionicons name="chevron-forward" size={16} color={AuthColors.textSecondary} />
+      </View>
     </View>
   );
 }
@@ -70,6 +84,7 @@ export function FindFacilitiesButton({ onPress, disabled }: { onPress: () => voi
       accessibilityRole="button"
       accessibilityLabel="Find facilities"
       style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, disabled && styles.disabled]}>
+      <Ionicons name="search-outline" size={18} color={AuthColors.onPrimary} />
       <Text style={styles.primaryButtonText}>Find Facilities</Text>
     </Pressable>
   );
@@ -115,10 +130,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  rowMeta: {
-    color: AuthColors.textSecondary,
-    fontSize: 12,
-  },
   centerBlock: {
     paddingVertical: Spacing.four,
     alignItems: 'center',
@@ -133,22 +144,61 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  rowMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  rowDistanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F0F4FF',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  rowDistanceText: {
+    color: AuthColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  rowStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 4,
+  },
+  rowStatusText: {
+    color: AuthColors.textSecondary,
+    fontSize: 12,
+  },
+  rowAction: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: AuthColors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
     backgroundColor: AuthColors.primary,
     borderRadius: 999,
     paddingVertical: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: AuthColors.onPrimary,
+    fontSize: 15,
+    fontWeight: '700',
   },
   pressed: {
     opacity: 0.85,
   },
   disabled: {
     opacity: 0.5,
-  },
-  primaryButtonText: {
-    color: AuthColors.onPrimary,
-    fontSize: 15,
-    fontWeight: '700',
   },
 });

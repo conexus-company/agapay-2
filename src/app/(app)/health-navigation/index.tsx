@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthColors } from '@/constants/auth-theme';
 import { Spacing } from '@/constants/theme';
 
-const QUICK_SELECT_TAGS = ['Fever', 'Cough', 'Child Consultation', 'Injury', 'Check-up'] as const;
+const QUICK_SELECT_TAGS = ['Fever', 'Cough', 'Child Consultation', 'Injury', 'Check-up', 'Headache', 'Skin Rash', 'Stomach Pain'] as const;
 
 export default function HealthNavigationScreen() {
   const [concern, setConcern] = useState('');
@@ -68,16 +68,25 @@ export default function HealthNavigationScreen() {
           <Text style={styles.title}>How can we help today?</Text>
           <Text style={styles.subtitle}>Tell us what you need and we&apos;ll guide you to the right healthcare service.</Text>
 
-          <View style={styles.inputRow}>
-            <TextInput
-              value={concern}
-              onChangeText={handleConcernChange}
-              placeholder="Describe your concern..."
-              placeholderTextColor={AuthColors.textSecondary}
-              style={styles.input}
-              multiline
-            />
-            <Ionicons name="mic-outline" size={20} color={AuthColors.primary} />
+          <View style={styles.inputCard}>
+            <View style={styles.inputLabelRow}>
+              <Ionicons name="create-outline" size={16} color={AuthColors.primary} />
+              <Text style={styles.inputLabel}>Describe what you're feeling</Text>
+            </View>
+            <View style={styles.inputRow}>
+              <TextInput
+                value={concern}
+                onChangeText={handleConcernChange}
+                placeholder="e.g., I've had a fever for 3 days..."
+                placeholderTextColor={AuthColors.textSecondary}
+                style={styles.input}
+                multiline
+              />
+            </View>
+            <View style={styles.inputFooter}>
+              <Text style={styles.inputHint}>Include duration and key symptoms</Text>
+              <Ionicons name="mic-outline" size={18} color={AuthColors.textSecondary} />
+            </View>
           </View>
 
           <View style={styles.chipsRow}>
@@ -176,15 +185,39 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: Spacing.two,
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  inputCard: {
     alignSelf: 'stretch',
-    gap: Spacing.two,
     backgroundColor: AuthColors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: AuthColors.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  inputLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: AuthColors.border,
+    backgroundColor: '#F8FAFF',
+  },
+  inputLabel: {
+    color: AuthColors.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
@@ -192,7 +225,21 @@ const styles = StyleSheet.create({
     flex: 1,
     color: AuthColors.text,
     fontSize: 15,
-    maxHeight: 100,
+    lineHeight: 22,
+    minHeight: 60,
+  },
+  inputFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: AuthColors.border,
+  },
+  inputHint: {
+    color: AuthColors.textSecondary,
+    fontSize: 11,
   },
   chipsRow: {
     flexDirection: 'row',

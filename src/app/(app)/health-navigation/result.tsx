@@ -111,7 +111,8 @@ export default function HealthNavigationResultScreen() {
           {triageStatus === 'loading' ? (
             <View style={styles.centerBlock}>
               <ActivityIndicator color={AuthColors.primary} size="large" />
-              <Text style={styles.loadingText}>Finding the right service for you…</Text>
+              <Text style={styles.loadingTitle}>Finding the right service for you</Text>
+              {concern ? <Text style={styles.loadingText}>“{concern}”</Text> : null}
             </View>
           ) : triageStatus === 'error' || !triageResult ? (
             <RetryErrorCard
@@ -121,6 +122,25 @@ export default function HealthNavigationResultScreen() {
             />
           ) : (
             <>
+              {/* ── Concern Summary ──────────────────────────────────── */}
+              <View style={styles.concernSummaryCard}>
+                <View style={styles.concernSummaryRow}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={AuthColors.primary} />
+                  <View style={styles.concernSummaryText}>
+                    <Text style={styles.concernSummaryLabel}>Your concern</Text>
+                    <Text style={styles.concernSummaryValue}>{concern}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit your concern"
+                    style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}>
+                    <Ionicons name="create-outline" size={16} color={AuthColors.primary} />
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                </View>
+              </View>
+
               {triageResult.is_emergency ? (
                 <EmergencyBanner />
               ) : (
@@ -144,7 +164,8 @@ export default function HealthNavigationResultScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Ask again"
                 style={({ pressed }) => [styles.askAgainButton, pressed && styles.pressed]}>
-                <Text style={styles.askAgainButtonText}>Ask Again</Text>
+                <Ionicons name="refresh" size={16} color={AuthColors.primary} />
+                <Text style={styles.askAgainButtonText}>Ask Again About Something Else</Text>
               </Pressable>
             </>
           )}
@@ -192,6 +213,7 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.three,
     gap: Spacing.three,
   },
+  // ── Center Block / Loading ───────────────────────────────────────
   centerBlock: {
     flex: 1,
     alignItems: 'center',
@@ -199,17 +221,73 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingVertical: Spacing.six,
   },
+  loadingTitle: {
+    color: AuthColors.text,
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   loadingText: {
     color: AuthColors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 18,
   },
-  askAgainButton: {
+  // ── Concern Summary ───────────────────────────────────────────────
+  concernSummaryCard: {
+    backgroundColor: AuthColors.surface,
+    borderRadius: 16,
+    padding: Spacing.three,
     borderWidth: 1,
+    borderColor: AuthColors.border,
+  },
+  concernSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  concernSummaryText: {
+    flex: 1,
+    gap: 2,
+  },
+  concernSummaryLabel: {
+    color: AuthColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  concernSummaryValue: {
+    color: AuthColors.text,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F0F4FF',
+  },
+  editButtonText: {
+    color: AuthColors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // ── Ask Again ─────────────────────────────────────────────────────
+  askAgainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    borderWidth: 1.5,
     borderColor: AuthColors.primary,
     borderRadius: 999,
     paddingVertical: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   askAgainButtonText: {
     color: AuthColors.primary,
