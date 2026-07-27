@@ -1,3 +1,5 @@
+import { parseJsonBody, type ApiResult } from '@/lib/api-result';
+
 const SSO_SCOPE = 'SSO_AUTHENTICATION';
 
 type EgovSsoConfig = {
@@ -20,23 +22,9 @@ export function getEgovSsoConfig(): EgovSsoConfig | null {
   return { baseUrl, partnerCode, partnerSecret, exchangeCode };
 }
 
-export type EgovSsoResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; kind: 'upstream_error'; status: number; body: unknown }
-  | { ok: false; kind: 'network_error' }
-  | { ok: false; kind: 'invalid_response'; message: string };
-
-async function parseJsonBody(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
 export async function exchangeCodeForToken(
   config: Pick<EgovSsoConfig, 'baseUrl' | 'partnerCode' | 'partnerSecret' | 'exchangeCode'>
-): Promise<EgovSsoResult<string>> {
+): Promise<ApiResult<string>> {
   let response: Response;
   try {
     response = await fetch(`${config.baseUrl}/api/token`, {
@@ -78,7 +66,7 @@ export async function exchangeCodeForToken(
 export async function callSsoAuthentication(
   config: Pick<EgovSsoConfig, 'baseUrl'>,
   accessToken: string
-): Promise<EgovSsoResult<unknown>> {
+): Promise<ApiResult<unknown>> {
   let response: Response;
   try {
     response = await fetch(`${config.baseUrl}/api/partner/sso_authentication`, {

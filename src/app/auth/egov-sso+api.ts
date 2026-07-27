@@ -1,14 +1,10 @@
-import {
-  callSsoAuthentication,
-  exchangeCodeForToken,
-  getEgovSsoConfig,
-  type EgovSsoResult,
-} from '@/lib/egov-sso';
+import { callSsoAuthentication, exchangeCodeForToken, getEgovSsoConfig } from '@/lib/egov-sso';
+import type { ApiResult } from '@/lib/api-result';
 
 // TODO: production native builds need an `origin` set via the expo-router
 // config plugin so this route resolves outside of `expo start` dev mode.
 
-function upstreamFailureResponse(step: 'token' | 'sso_authentication', result: EgovSsoResult<unknown>) {
+function upstreamFailureResponse(step: 'token' | 'sso_authentication', result: ApiResult<unknown>) {
   if (result.ok) {
     throw new Error('upstreamFailureResponse called with a successful result');
   }
