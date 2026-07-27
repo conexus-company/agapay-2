@@ -227,25 +227,15 @@ export default function HomeScreen() {
 
       // No profile in local storage yet — this only happens for a session
       // that predates this feature (e.g. signed in before an app update).
-      // Re-fetch the citizen profile with the still-valid session token and
-      // create/reuse the health profile, same as the fresh-login flow.
-      const sessionToken = session?.sessionToken;
-      if (!sessionToken) {
+      // The citizen profile from eGov SSO is already on the auth session, so
+      // just create/reuse the health profile from it, same as the fresh-login flow.
+      const citizenProfile = session?.profile;
+      if (!citizenProfile) {
         if (!cancelled) setIsLoading(false);
         return;
       }
 
-      const profileResult = await fetchCitizenProfile(sessionToken);
-      if (cancelled) return;
-      if (!profileResult.ok) {
-        setBackfillError(
-          "We couldn't load your AGAPAY profile. Check your connection and try again.",
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      const healthResult = await createOrGetHealthProfile(profileResult.data);
+      const healthResult = await createOrGetHealthProfile(citizenProfile);
       if (cancelled) return;
       if (!healthResult.ok) {
         setBackfillError(
