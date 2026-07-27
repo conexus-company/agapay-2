@@ -1,180 +1,356 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
+import { AppleMaps, GoogleMaps } from 'expo-maps';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, Colors, Spacing } from '@/constants/theme';
+import { useFacilities, type Facility } from '@/hooks/use-facilities';
 import { useTheme } from '@/hooks/use-theme';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const theme = useTheme();
+const light = Colors.light;
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+function FacilityCard({ facility }: { facility: Facility }) {
+  const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${facility.lat},${facility.lng}`;
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.cardTypeBadge}>
+          <Text style={styles.cardTypeText}>{facility.type}</Text>
+        </View>
+        <Text style={styles.cardDistance}>{facility.distance_km} km</Text>
+      </View>
+      <Text style={styles.cardName}>{facility.name}</Text>
+      <Text style={styles.cardAddress}>{facility.address}</Text>
+      <Pressable
+        onPress={() => Linking.openURL(directionsUrl)}
+        style={({ pressed }) => [styles.cardButton, pressed && { opacity: 0.7 }]}
+        accessibilityRole="button"
+        accessibilityLabel={`Get directions to ${facility.name}`}>
+        <Text style={styles.cardButtonText}>Get Directions</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function NativeMapView({
+  facilities,
+  center,
+  loading,
+}: {
+  facilities: Facility[];
+  center: { lat: number; lng: number };
+  loading: boolean;
+}) {
+  const markers = facilities.map((f) => ({
+    id: f.id,
+    coordinates: { latitude: f.lat, longitude: f.lng } as { latitude: number; longitude: number },
+    title: f.name,
+    snippet: `${f.type} — ${f.distance_km} km`,
+  }));
+
+  if (loading) {
+    return (
+      <View style={styles.mapLoading}>
+        <ActivityIndicator size="large" color={light.text} />
+        <Text style={styles.mapLoadingText}>Loading map...</Text>
+      </View>
+    );
+  }
+
+  if (Platform.OS === 'ios') {
+    return (
+      <AppleMaps.View
+        style={styles.map}
+        cameraPosition={{
+          coordinates: { latitude: center.lat, longitude: center.lng },
+          zoom: 13,
+        }}
+        markers={markers.map((m) => ({
+          coordinates: m.coordinates,
+          title: m.title,
+          monogram: m.title.charAt(0),
+          tintColor: '#2563EB',
+        }))}
+        properties={{ isMyLocationEnabled: true }}
+      />
+    );
+  }
+
+  return (
+    <GoogleMaps.View
+      style={styles.map}
+      cameraPosition={{
+        coordinates: { latitude: center.lat, longitude: center.lng },
+        zoom: 13,
+      }}
+      markers={markers.map((m) => ({
+        coordinates: m.coordinates,
+        title: m.title,
+        snippet: m.snippet,
+      }))}
+      properties={{ isMyLocationEnabled: true }}
+    />
+  );
+}
+
+function WebFallback({
+  facilities,
+  loading,
+  error,
+}: {
+  facilities: Facility[];
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <View style={styles.webLoading}>
+        <ActivityIndicator size="large" color={light.text} />
+        <Text style={styles.webLoadingText}>Loading facilities...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+      contentContainerStyle={styles.webContent}
+      keyboardShouldPersistTaps="handled"
+      bounces={false}>
+      <View style={styles.webBanner}>
+        <Text style={styles.webBannerTitle}>Healthcare Facility Map</Text>
+        <Text style={styles.webBannerText}>
+          Map view is available on the mobile app. Below is a list of nearby facilities.
+        </Text>
+      </View>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+      {facilities.length === 0 && !error && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>No facilities found nearby.</Text>
+        </View>
+      )}
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
+      {facilities.map((facility) => (
+        <FacilityCard key={facility.id} facility={facility} />
+      ))}
     </ScrollView>
   );
 }
 
+export default function ExploreScreen() {
+  const theme = useTheme();
+  const { data, loading, error, center, refresh } = useFacilities();
+  const [locationGranted, setLocationGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      refresh();
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+
+      setLocationGranted(status === 'granted');
+
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (cancelled) return;
+        refresh({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      } else {
+        refresh();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
+
+  const handleRefresh = useCallback(() => {
+    refresh(locationGranted === true ? center : undefined);
+  }, [refresh, locationGranted, center]);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <SafeAreaView style={styles.safeArea}>
+          <WebFallback facilities={data} loading={loading} error={error} />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <NativeMapView facilities={data} center={center} loading={loading} />
+
+      {!loading && locationGranted === false && (
+        <View style={styles.locationBanner}>
+          <Text style={styles.locationBannerText}>
+            Enable location to find nearby facilities.
+          </Text>
+          <Pressable onPress={handleRefresh} style={styles.locationBannerButton}>
+            <Text style={styles.locationBannerButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <View style={styles.nativeListContainer}>
+        <ScrollView
+          style={styles.nativeList}
+          contentContainerStyle={styles.nativeListContent}
+          nestedScrollEnabled
+          bounces={false}>
+          {error && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Pressable onPress={handleRefresh} style={styles.retryButton}>
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {data.length === 0 && !loading && !error && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No facilities found nearby.</Text>
+            </View>
+          )}
+
+          {data.map((facility) => (
+            <FacilityCard key={facility.id} facility={facility} />
+          ))}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  scrollView: {
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
+  map: { flex: 1 },
+  mapLoading: {
     flex: 1,
-  },
-  contentContainer: {
-    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.two,
   },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
+  mapLoadingText: { fontSize: 15, color: '#64748B' },
+  locationBanner: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    right: 16,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  titleContainer: {
+  locationBannerText: { flex: 1, fontSize: 14, color: '#92400E' },
+  locationBannerButton: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  locationBannerButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  nativeListContainer: {
+    position: 'absolute',
+    bottom: BottomTabInset + 8,
+    left: 0,
+    right: 0,
+    maxHeight: '35%',
+  },
+  nativeList: { flex: 1 },
+  nativeListContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E6EC',
+    padding: 12,
+    gap: 6,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardTypeBadge: {
+    backgroundColor: '#F0F4F8',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  cardTypeText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
+  cardDistance: { fontSize: 12, fontWeight: '500', color: '#64748B' },
+  cardName: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
+  cardAddress: { fontSize: 13, color: '#64748B' },
+  cardButton: {
+    minHeight: 32,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 4,
+  },
+  cardButtonText: { fontSize: 13, fontWeight: '600', color: '#2563EB' },
+  webContent: {
+    paddingHorizontal: Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.three,
+  },
+  webBanner: {
+    paddingTop: Spacing.four,
     alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
     gap: Spacing.one,
+  },
+  webBannerTitle: { fontSize: 24, fontWeight: '700', color: '#1E293B' },
+  webBannerText: { fontSize: 15, color: '#64748B', textAlign: 'center' },
+  webLoading: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: Spacing.two,
   },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+  webLoadingText: { fontSize: 15, color: '#64748B' },
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 10,
+    padding: 12,
+    gap: Spacing.two,
   },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-  },
+  errorText: { color: '#DC2626', fontSize: 14 },
+  retryButton: { alignSelf: 'flex-start' },
+  retryText: { color: '#DC2626', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
+  emptyState: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { fontSize: 15, color: '#64748B' },
 });
