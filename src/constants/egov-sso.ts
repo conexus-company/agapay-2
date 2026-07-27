@@ -13,3 +13,9 @@ const EGOV_SSO_REDIRECT_PATH = 'auth/callback';
 export function getEgovSsoRedirectUri(): string {
   return Linking.createURL(EGOV_SSO_REDIRECT_PATH);
 }
+
+const EGOV_LIVENESS_REDIRECT_PATH = 'auth/liveness-callback';
+
+export function getEgovLivenessRedirectUri(): string {
+  return Linking.createURL(EGOV_LIVENESS_REDIRECT_PATH);
+}

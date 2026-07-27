@@ -1,66 +1,85 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
+import { getEgovLivenessRedirectUri } from '@/constants/egov-sso';
 import { useAuth } from '@/contexts/auth-context';
-import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
+import { getVerificationStatus, startVerification } from '@/lib/egov-sso-client';
 
 type RunState =
   | { status: 'idle' }
-  | { status: 'running' }
-  | { status: 'done'; sessionToken: string; profile: unknown }
+  | { status: 'starting' }
+  | { status: 'awaiting_liveness'; flowId: string; profile: unknown; livenessUrl: string }
+  | { status: 'checking'; flowId: string; profile: unknown; livenessUrl: string }
+  | { status: 'completed'; profile: unknown; everify: unknown }
   | { status: 'error'; message: string };
 
 /**
  * Dev-only sandbox tester: lets a tester paste a manually-obtained eGov
- * sandbox exchange_code and run the token exchange + profile fetch chain
- * without going through the (not-yet-available) real login page.
+ * sandbox exchange_code and run the full SSO + Face Liveness + eVerify
+ * orchestration flow without going through the real WebBrowser SSO redirect.
  */
 export default function DevLoginScreen() {
   const { signIn } = useAuth();
   const [code, setCode] = useState('');
+  const [sessionIdInput, setSessionIdInput] = useState('');
   const [result, setResult] = useState<RunState>({ status: 'idle' });
   const [showDetails, setShowDetails] = useState(false);
-  const [pendingSession, setPendingSession] = useState<{ sessionToken: string; profile: unknown } | null>(
-    null
-  );
+  const [pendingSession, setPendingSession] = useState<{ profile: unknown; everify: unknown } | null>(null);
 
   // Hooks above run unconditionally; nothing below executes in production.
   if (!__DEV__) {
     return null;
   }
 
-  const run = async () => {
+  const start = async () => {
     const trimmed = code.trim();
     if (!trimmed) return;
     setShowDetails(false);
-    setResult({ status: 'running' });
+    setResult({ status: 'starting' });
 
-    const tokenResult = await exchangeCodeForSession(trimmed);
-    if (!tokenResult.ok) {
-      setResult({ status: 'error', message: `Token exchange failed: ${JSON.stringify(tokenResult)}` });
+    const startResult = await startVerification(trimmed, getEgovLivenessRedirectUri());
+    if (!startResult.ok) {
+      setResult({ status: 'error', message: `Start failed: ${JSON.stringify(startResult)}` });
       return;
     }
 
-    const profileResult = await fetchCitizenProfile(tokenResult.data.sessionToken);
-    if (!profileResult.ok) {
-      setResult({ status: 'error', message: `Profile fetch failed: ${JSON.stringify(profileResult)}` });
+    setResult({
+      status: 'awaiting_liveness',
+      flowId: startResult.data.flowId,
+      profile: startResult.data.profile,
+      livenessUrl: startResult.data.liveness.url,
+    });
+  };
+
+  const checkStatus = async (flowId: string, profile: unknown, livenessUrl: string) => {
+    const trimmedSessionId = sessionIdInput.trim();
+    if (!trimmedSessionId) {
+      setResult({ status: 'error', message: 'Paste the session_id from the liveness page redirect URL first.' });
       return;
     }
 
-    setResult({ status: 'done', sessionToken: tokenResult.data.sessionToken, profile: profileResult.data });
+    setResult({ status: 'checking', flowId, profile, livenessUrl });
+
+    const statusResult = await getVerificationStatus(flowId, trimmedSessionId);
+    if (!statusResult.ok) {
+      setResult({ status: 'error', message: `Status check failed: ${JSON.stringify(statusResult)}` });
+      return;
+    }
+
+    setResult({ status: 'completed', profile, everify: statusResult.data.everify });
   };
 
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.title}>Dev: Sandbox eGov SSO</Text>
+          <Text style={styles.title}>Dev: Sandbox eGov SSO + Liveness + eVerify</Text>
           <Text style={styles.subtitle}>
-            Paste a sandbox exchange_code from the eGov test portal to run the token exchange and profile fetch
-            chain. This screen is excluded from production builds.
+            Paste a sandbox exchange_code from the eGov test portal to run the full verification chain. This
+            screen is excluded from production builds.
           </Text>
 
           <TextInput
@@ -75,15 +94,15 @@ export default function DevLoginScreen() {
           />
 
           <Pressable
-            onPress={run}
-            disabled={result.status === 'running'}
+            onPress={start}
+            disabled={result.status === 'starting' || result.status === 'checking'}
             accessibilityRole="button"
-            accessibilityLabel="Run token exchange"
+            accessibilityLabel="Start verification"
             style={styles.button}>
-            {result.status === 'running' ? (
+            {result.status === 'starting' ? (
               <ActivityIndicator color={AuthColors.onPrimary} />
             ) : (
-              <Text style={styles.buttonText}>Run token exchange</Text>
+              <Text style={styles.buttonText}>Start verification</Text>
             )}
           </Pressable>
 
@@ -93,16 +112,54 @@ export default function DevLoginScreen() {
             </Animated.View>
           )}
 
-          {result.status === 'done' && (
+          {(result.status === 'awaiting_liveness' || result.status === 'checking') && (
             <Animated.View entering={FadeIn.duration(200)} style={styles.resultBlock}>
-              <Text style={styles.successText}>✓ Token exchange &amp; profile fetch succeeded</Text>
+              <Text style={styles.successText}>✓ Verification started — flow_id: {result.flowId}</Text>
 
               <Pressable
-                onPress={() => setPendingSession({ sessionToken: result.sessionToken, profile: result.profile })}
+                onPress={() => Linking.openURL(result.livenessUrl)}
                 accessibilityRole="button"
-                accessibilityLabel="Use this session and continue into the app"
+                accessibilityLabel="Open face liveness verification"
                 style={[styles.button, styles.useButton]}>
-                <Text style={styles.buttonText}>Use this session &amp; continue</Text>
+                <Text style={styles.buttonText}>Open Face Verification</Text>
+              </Pressable>
+
+              <TextInput
+                value={sessionIdInput}
+                onChangeText={setSessionIdInput}
+                placeholder="session_id from the redirect URL"
+                placeholderTextColor={AuthColors.textSecondary}
+                style={styles.input}
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel="Liveness session_id input"
+              />
+
+              <Pressable
+                onPress={() => checkStatus(result.flowId, result.profile, result.livenessUrl)}
+                disabled={result.status === 'checking'}
+                accessibilityRole="button"
+                accessibilityLabel="Check verification status"
+                style={[styles.button, styles.useButton]}>
+                {result.status === 'checking' ? (
+                  <ActivityIndicator color={AuthColors.onPrimary} />
+                ) : (
+                  <Text style={styles.buttonText}>Check status</Text>
+                )}
+              </Pressable>
+            </Animated.View>
+          )}
+
+          {result.status === 'completed' && (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.resultBlock}>
+              <Text style={styles.successText}>✓ eVerify completed</Text>
+
+              <Pressable
+                onPress={() => setPendingSession({ profile: result.profile, everify: result.everify })}
+                accessibilityRole="button"
+                accessibilityLabel="Use this identity and continue into the app"
+                style={[styles.button, styles.useButton]}>
+                <Text style={styles.buttonText}>Use this identity &amp; continue</Text>
               </Pressable>
 
               <Pressable
@@ -117,13 +174,13 @@ export default function DevLoginScreen() {
 
               {showDetails && (
                 <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.details}>
-                  <Text style={styles.resultLabel}>session_token</Text>
-                  <Text selectable style={styles.resultText}>
-                    {result.sessionToken}
-                  </Text>
                   <Text style={styles.resultLabel}>profile</Text>
                   <Text selectable style={styles.resultText}>
                     {JSON.stringify(result.profile, null, 2)}
+                  </Text>
+                  <Text style={styles.resultLabel}>everify</Text>
+                  <Text selectable style={styles.resultText}>
+                    {JSON.stringify(result.everify, null, 2)}
                   </Text>
                 </Animated.View>
               )}
@@ -140,7 +197,7 @@ export default function DevLoginScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Signed in</Text>
-            <Text style={styles.modalMessage}>Sandbox session created successfully.</Text>
+            <Text style={styles.modalMessage}>Sandbox identity verified successfully.</Text>
             <Pressable
               onPress={() => {
                 const session = pendingSession;
