@@ -319,14 +319,24 @@ export default function LoginScreen() {
         </View>
 
         {__DEV__ && (
-          <Pressable
-            onPress={() => router.push('/auth/dev-login')}
-            accessibilityRole="button"
-            accessibilityLabel="Open developer sandbox sign-in"
-            android_ripple={{ color: AuthColors.border }}
-            style={styles.devLink}>
-            <Text style={styles.devLinkText}>Developer: test with sandbox exchange code</Text>
-          </Pressable>
+          <>
+            <Pressable
+              onPress={() => router.push('/auth/dev-login')}
+              accessibilityRole="button"
+              accessibilityLabel="Open developer sandbox sign-in"
+              android_ripple={{ color: AuthColors.border }}
+              style={styles.devLink}>
+              <Text style={styles.devLinkText}>Developer: test with sandbox exchange code</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/auth/quick-login')}
+              accessibilityRole="button"
+              accessibilityLabel="Open developer quick login"
+              android_ripple={{ color: AuthColors.border }}
+              style={styles.devLink}>
+              <Text style={styles.devLinkText}>Developer: quick login (skip liveness/eVerify)</Text>
+            </Pressable>
+          </>
         )}
       </SafeAreaView>
     </View>
