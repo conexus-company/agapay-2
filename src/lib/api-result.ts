@@ -4,9 +4,9 @@ export type ApiResult<T> =
   | { ok: false; kind: 'network_error' }
   | { ok: false; kind: 'invalid_response'; message: string };
 
-export async function parseJsonBody(response: Response): Promise<unknown> {
+export async function parseJsonBody(source: { json(): Promise<unknown> }): Promise<unknown> {
   try {
-    return await response.json();
+    return await source.json();
   } catch {
     return null;
   }

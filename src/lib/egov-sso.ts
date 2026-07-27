@@ -6,24 +6,23 @@ type EgovSsoConfig = {
   baseUrl: string;
   partnerCode: string;
   partnerSecret: string;
-  exchangeCode: string;
 };
 
 export function getEgovSsoConfig(): EgovSsoConfig | null {
   const baseUrl = process.env.EGOV_SSO_BASE_URL;
   const partnerCode = process.env.EGOV_SSO_PARTNER_CODE;
   const partnerSecret = process.env.EGOV_SSO_PARTNER_SECRET;
-  const exchangeCode = process.env.EGOV_SSO_EXCHANGE_CODE;
 
-  if (!baseUrl || !partnerCode || !partnerSecret || !exchangeCode) {
+  if (!baseUrl || !partnerCode || !partnerSecret) {
     return null;
   }
 
-  return { baseUrl, partnerCode, partnerSecret, exchangeCode };
+  return { baseUrl, partnerCode, partnerSecret };
 }
 
 export async function exchangeCodeForToken(
-  config: Pick<EgovSsoConfig, 'baseUrl' | 'partnerCode' | 'partnerSecret' | 'exchangeCode'>
+  config: EgovSsoConfig,
+  exchangeCode: string
 ): Promise<ApiResult<string>> {
   let response: Response;
   try {
@@ -31,7 +30,7 @@ export async function exchangeCodeForToken(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'User-Agent': 'agapay-backend/1.0' },
       body: JSON.stringify({
-        exchange_code: config.exchangeCode,
+        exchange_code: exchangeCode,
         scope: SSO_SCOPE,
         partner_code: config.partnerCode,
         partner_secret: config.partnerSecret,
