@@ -52,6 +52,10 @@ function handleServicePress(tile: ServiceTileDef) {
     router.push('/health-id');
     return;
   }
+  if (tile.key === 'facilities') {
+    router.push('/facilities');
+    return;
+  }
   if (tile.key === 'journey') {
     router.push('/journey');
     return;
