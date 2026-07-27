@@ -1,11 +1,12 @@
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Brand, Spacing } from '@/constants/theme';
 import type { Recommendation } from '@/lib/ai/recommendation';
 
 const URGENCY_STYLES: Record<Recommendation['urgency'], { bg: string; text: string; label: string }> = {
-  emergency: { bg: '#FEE2E2', text: '#DC2626', label: 'Emergency' },
-  urgent: { bg: '#FEF3C7', text: '#D97706', label: 'Urgent' },
-  routine: { bg: '#F0F4F8', text: '#64748B', label: 'Routine' },
+  emergency: { bg: Brand.dangerBg, text: Brand.danger, label: 'Emergency' },
+  urgent: { bg: Brand.warningBg, text: Brand.warning, label: 'Urgent' },
+  routine: { bg: '#F0F4F8', text: Brand.muted, label: 'Routine' },
 };
 
 const ACTION_LABELS: Record<Recommendation['action'], string> = {
@@ -100,17 +101,20 @@ export function EmergencyModal({ visible, onDismiss, onContinue }: EmergencyModa
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Brand.surface,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E6EC',
-    padding: 16,
-    gap: 8,
+    padding: Spacing.four,
+    gap: Spacing.two,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.two,
   },
   badge: {
     paddingHorizontal: 10,
@@ -126,32 +130,32 @@ const styles = StyleSheet.create({
   department: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#64748B',
+    color: Brand.textSecondary,
   },
   cardTitle: {
     fontSize: 17,
     fontWeight: '600',
     lineHeight: 24,
-    color: '#1E293B',
+    color: Brand.textPrimary,
   },
   cardReason: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#64748B',
+    color: Brand.textSecondary,
   },
   cardButton: {
     minHeight: 40,
     borderRadius: 10,
-    backgroundColor: '#F0F0F3',
+    backgroundColor: Brand.background,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    marginTop: 4,
+    marginTop: Spacing.one,
   },
   cardButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563EB',
+    color: Brand.primary,
   },
   modalOverlay: {
     flex: 1,
@@ -161,7 +165,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Brand.surface,
     borderRadius: 20,
     padding: 24,
     gap: 16,
@@ -171,7 +175,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#DC2626',
+    color: Brand.danger,
     textAlign: 'center',
   },
   modalBody: {
@@ -190,7 +194,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalCallButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: Brand.danger,
   },
   modalCallButtonText: {
     color: '#FFFFFF',
@@ -198,10 +202,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalContinueButton: {
-    backgroundColor: '#F0F0F3',
+    backgroundColor: Brand.background,
   },
   modalContinueButtonText: {
-    color: '#2563EB',
+    color: Brand.primary,
     fontSize: 16,
     fontWeight: '600',
   },

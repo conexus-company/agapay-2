@@ -13,11 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomTabInset, Colors, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
 import { useFacilities, type Facility } from '@/hooks/use-facilities';
 import { useTheme } from '@/hooks/use-theme';
-
-const light = Colors.light;
 
 function FacilityCard({ facility }: { facility: Facility }) {
   const directionsUrl = `https://www.google.com/maps/search/?api=1&query=${facility.lat},${facility.lng}`;
@@ -62,7 +60,7 @@ function NativeMapView({
   if (loading) {
     return (
       <View style={styles.mapLoading}>
-        <ActivityIndicator size="large" color={light.text} />
+        <ActivityIndicator size="large" color={Brand.primary} />
         <Text style={styles.mapLoadingText}>Loading map...</Text>
       </View>
     );
@@ -80,7 +78,7 @@ function NativeMapView({
           coordinates: m.coordinates,
           title: m.title,
           monogram: m.title.charAt(0),
-          tintColor: '#2563EB',
+          tintColor: Brand.primary,
         }))}
         properties={{ isMyLocationEnabled: true }}
       />
@@ -255,7 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.two,
   },
-  mapLoadingText: { fontSize: 15, color: '#64748B' },
+  mapLoadingText: { fontSize: 15, color: Brand.textSecondary },
   locationBanner: {
     position: 'absolute',
     top: 60,
@@ -271,7 +269,7 @@ const styles = StyleSheet.create({
   },
   locationBannerText: { flex: 1, fontSize: 14, color: '#92400E' },
   locationBannerButton: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: Brand.warning,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -291,12 +289,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E6EC',
+    backgroundColor: Brand.surface,
+    borderRadius: 16,
     padding: 12,
     gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -309,20 +310,20 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 10,
   },
-  cardTypeText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
-  cardDistance: { fontSize: 12, fontWeight: '500', color: '#64748B' },
-  cardName: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
-  cardAddress: { fontSize: 13, color: '#64748B' },
+  cardTypeText: { fontSize: 11, fontWeight: '600', color: Brand.muted },
+  cardDistance: { fontSize: 12, fontWeight: '500', color: Brand.muted },
+  cardName: { fontSize: 15, fontWeight: '600', color: Brand.textPrimary },
+  cardAddress: { fontSize: 13, color: Brand.textSecondary },
   cardButton: {
     minHeight: 32,
     borderRadius: 8,
-    backgroundColor: '#F0F0F3',
+    backgroundColor: Brand.background,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
     marginTop: 4,
   },
-  cardButtonText: { fontSize: 13, fontWeight: '600', color: '#2563EB' },
+  cardButtonText: { fontSize: 13, fontWeight: '600', color: Brand.primary },
   webContent: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,
@@ -333,24 +334,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
-  webBannerTitle: { fontSize: 24, fontWeight: '700', color: '#1E293B' },
-  webBannerText: { fontSize: 15, color: '#64748B', textAlign: 'center' },
+  webBannerTitle: { fontSize: 24, fontWeight: '700', color: Brand.textPrimary },
+  webBannerText: { fontSize: 15, color: Brand.textSecondary, textAlign: 'center' },
   webLoading: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
     gap: Spacing.two,
   },
-  webLoadingText: { fontSize: 15, color: '#64748B' },
+  webLoadingText: { fontSize: 15, color: Brand.textSecondary },
   errorBanner: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
+    backgroundColor: Brand.dangerBg,
+    borderRadius: 12,
     padding: 12,
     gap: Spacing.two,
   },
-  errorText: { color: '#DC2626', fontSize: 14 },
+  errorText: { color: Brand.danger, fontSize: 14 },
   retryButton: { alignSelf: 'flex-start' },
-  retryText: { color: '#DC2626', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
+  retryText: { color: Brand.danger, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyText: { fontSize: 15, color: '#64748B' },
+  emptyText: { fontSize: 15, color: Brand.textSecondary },
 });

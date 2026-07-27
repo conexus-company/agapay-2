@@ -47,9 +47,6 @@
         }
       ]
     ],
-      "expo-secure-store",
-      "expo-maps"
-    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

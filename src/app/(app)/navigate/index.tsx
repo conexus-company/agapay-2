@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomTabInset, Colors, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
 import { useEmergencyDetection } from '@/hooks/use-emergency-detection';
 import { useTheme } from '@/hooks/use-theme';
 import type { Recommendation } from '@/lib/ai/recommendation';
@@ -90,13 +90,14 @@ export default function NavigateScreen() {
           keyboardShouldPersistTaps="handled"
           bounces={false}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>What do you need help with?</Text>
+            <Text style={styles.greeting}>Hi there 👋</Text>
+            <Text style={[styles.title, { color: theme.text }]}>How can we help you today?</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Describe your symptoms, concern, or the type of care you think you need.
             </Text>
           </View>
 
-          <View style={styles.inputSection}>
+          <View style={styles.inputCard}>
             <TextInput
               value={description}
               onChangeText={(text) => {
@@ -104,11 +105,11 @@ export default function NavigateScreen() {
                 if (text.trim().length === 0) emergency.reset();
               }}
               placeholder="e.g., I have a fever and sore throat..."
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor={Brand.textSecondary}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
-              style={[styles.input, { color: theme.text, borderColor: '#E2E6EC', backgroundColor: '#FFFFFF' }]}
+              style={styles.input}
               accessibilityLabel="Describe your health concern"
               returnKeyType="go"
               onSubmitEditing={canSubmit ? handleSubmit : undefined}
@@ -135,7 +136,7 @@ export default function NavigateScreen() {
 
           {flowState === 'loading' && (
             <View style={styles.loadingSection}>
-              <ActivityIndicator size="large" color={light.text} />
+              <ActivityIndicator size="large" color={Brand.primary} />
               <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
                 Analyzing your request...
               </Text>
@@ -177,8 +178,6 @@ export default function NavigateScreen() {
   );
 }
 
-const light = Colors.light;
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
@@ -191,30 +190,43 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     gap: Spacing.one,
   },
+  greeting: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Brand.textSecondary,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
     lineHeight: 34,
+    color: Brand.textPrimary,
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
   },
-  inputSection: {
-    gap: Spacing.two,
+  inputCard: {
+    backgroundColor: Brand.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.three,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   input: {
     minHeight: 120,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
     fontSize: 16,
     lineHeight: 24,
+    color: Brand.textPrimary,
   },
   submitButton: {
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: '#2563EB',
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: Brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
@@ -239,20 +251,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   errorBanner: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: Brand.dangerBg,
+    borderRadius: 12,
+    padding: Spacing.three,
     gap: Spacing.two,
   },
   errorText: {
-    color: '#DC2626',
+    color: Brand.danger,
     fontSize: 14,
   },
   retryButton: {
     alignSelf: 'flex-start',
   },
   retryText: {
-    color: '#DC2626',
+    color: Brand.danger,
     fontSize: 14,
     fontWeight: '600',
     textDecorationLine: 'underline',
