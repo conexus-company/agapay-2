@@ -1,6 +1,7 @@
 import { parseJsonBody, type ApiResult } from '@/lib/api-result';
 
 const USER_AGENT = 'agapay-backend/1.0';
+const MIN_CONFIDENCE_SCORE = 95;
 
 type FaceLivenessConfig = {
   baseUrl: string;
@@ -49,6 +50,14 @@ export async function createLivenessSession(
   }
 
   return { ok: true, data: body };
+}
+
+export function isLivenessVerified(body: unknown): boolean {
+  const status = body && typeof body === 'object' ? (body as { status?: unknown }).status : undefined;
+  const confidenceScore =
+    body && typeof body === 'object' ? (body as { confidence_score?: unknown }).confidence_score : undefined;
+
+  return status === 'SUCCEEDED' && typeof confidenceScore === 'number' && confidenceScore >= MIN_CONFIDENCE_SCORE;
 }
 
 export async function getLivenessResult(
