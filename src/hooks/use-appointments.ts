@@ -34,6 +34,12 @@ export function useAppointments(): UseAppointmentsState {
     setLoading(true);
     setError(null);
 
+    if (!supabase) {
+      setError('Database not configured');
+      setLoading(false);
+      return;
+    }
+
     const { data, error: fetchError } = await supabase
       .from('appointments')
       .select('*')
@@ -56,6 +62,11 @@ export function useAppointments(): UseAppointmentsState {
       scheduledAt: string;
       consentId?: string;
     }): Promise<Appointment | null> => {
+      if (!supabase) {
+        setError('Database not configured');
+        return null;
+      }
+
       const ref = `AGP-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
       const { data, error: insertError } = await supabase
@@ -85,6 +96,11 @@ export function useAppointments(): UseAppointmentsState {
 
   const cancel = useCallback(
     async (appointmentId: string) => {
+      if (!supabase) {
+        setError('Database not configured');
+        return;
+      }
+
       const { error: updateError } = await supabase
         .from('appointments')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
