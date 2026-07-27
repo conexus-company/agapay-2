@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RetryErrorCard } from '@/components/health-profile/retry-error-card';
 import { AuthColors } from '@/constants/auth-theme';
 import { BottomTabInset, Spacing } from '@/constants/theme';
-import { MOCK_FACILITIES } from '@/lib/mock-facilities';
+import { findNearbyFacilities } from '@/lib/facilities';
+import { getCurrentLocation } from '@/lib/geolocation';
 import type { Facility } from '@/lib/health-navigation-types';
 
 type FilterKey = 'Government' | 'Private' | 'Nearby' | 'Open Now';
@@ -22,7 +24,16 @@ function matchesFilter(facility: Facility, filter: FilterKey): boolean {
 function FacilityCard({ facility }: { facility: Facility }) {
   return (
     <Pressable
-      onPress={() => router.push({ pathname: '/facilities/[id]', params: { id: facility.id } })}
+      onPress={() =>
+        router.push({
+          pathname: '/facilities/[id]',
+          // No facilities backend exists yet — the detail screen is fed the
+          // tapped card's already-fetched data directly instead of
+          // re-querying Overpass by id, avoiding a second network round
+          // trip and a second location-permission prompt.
+          params: { id: facility.id, facility: JSON.stringify(facility) },
+        })
+      }
       accessibilityRole="button"
       accessibilityLabel={`View details for ${facility.name}`}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
@@ -33,11 +44,20 @@ function FacilityCard({ facility }: { facility: Facility }) {
         <Text style={styles.cardName} numberOfLines={2}>
           {facility.name}
         </Text>
+        {facility.address && (
+          <Text style={styles.cardAddress} numberOfLines={1}>
+            {facility.address}
+          </Text>
+        )}
         <View style={styles.cardMetaRow}>
           <Ionicons name="location" size={13} color={AuthColors.danger} />
           <Text style={styles.cardMetaText}>{facility.distanceKm.toFixed(1)} km</Text>
-          <Ionicons name="star" size={13} color={AuthColors.accent} style={styles.cardMetaStar} />
-          <Text style={styles.cardMetaText}>{(facility.rating ?? 0).toFixed(1)}</Text>
+          {facility.rating !== undefined && (
+            <>
+              <Ionicons name="star" size={13} color={AuthColors.accent} style={styles.cardMetaStar} />
+              <Text style={styles.cardMetaText}>{facility.rating.toFixed(1)}</Text>
+            </>
+          )}
           {facility.type && (
             <View style={styles.typeBadge}>
               <Text style={styles.typeBadgeText}>{facility.type}</Text>
@@ -45,9 +65,19 @@ function FacilityCard({ facility }: { facility: Facility }) {
           )}
         </View>
       </View>
-      <View style={[styles.statusPill, facility.openStatus !== 'open' && styles.statusPillClosed]}>
-        <Text style={[styles.statusPillText, facility.openStatus !== 'open' && styles.statusPillTextClosed]}>
-          {facility.openStatus === 'open' ? 'Open' : 'Closed'}
+      <View
+        style={[
+          styles.statusPill,
+          facility.openStatus === 'closed' && styles.statusPillClosed,
+          facility.openStatus === 'unknown' && styles.statusPillUnknown,
+        ]}>
+        <Text
+          style={[
+            styles.statusPillText,
+            facility.openStatus === 'closed' && styles.statusPillTextClosed,
+            facility.openStatus === 'unknown' && styles.statusPillTextUnknown,
+          ]}>
+          {facility.openStatus === 'open' ? 'Open' : facility.openStatus === 'closed' ? 'Closed' : 'Hours unknown'}
         </Text>
       </View>
     </Pressable>
@@ -56,18 +86,60 @@ function FacilityCard({ facility }: { facility: Facility }) {
 
 export default function FindFacilitiesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<FilterKey>('Government');
+  const [selectedFilter, setSelectedFilter] = useState<FilterKey | null>(null);
+
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [rawFacilities, setRawFacilities] = useState<Facility[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadNearbyFacilities() {
+      setStatus('loading');
+      setErrorMessage(null);
+
+      const locationResult = await getCurrentLocation();
+      if (cancelled) return;
+      if (!locationResult.ok) {
+        setErrorMessage(
+          locationResult.kind === 'invalid_response'
+            ? locationResult.message
+            : 'Could not access your location right now.',
+        );
+        setStatus('error');
+        return;
+      }
+
+      const facilitiesResult = await findNearbyFacilities(locationResult.data.lat, locationResult.data.lng);
+      if (cancelled) return;
+      if (!facilitiesResult.ok) {
+        setErrorMessage('Could not load nearby facilities right now. Please try again.');
+        setStatus('error');
+        return;
+      }
+
+      setRawFacilities(facilitiesResult.data);
+      setStatus('ready');
+    }
+
+    loadNearbyFacilities();
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
   const facilities = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return MOCK_FACILITIES.filter((facility) => {
+    return rawFacilities.filter((facility) => {
       if (query) {
         const haystack = `${facility.name} ${facility.address ?? ''}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
-      return matchesFilter(facility, selectedFilter);
-    }).sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [searchQuery, selectedFilter]);
+      return selectedFilter ? matchesFilter(facility, selectedFilter) : true;
+    });
+  }, [rawFacilities, searchQuery, selectedFilter]);
 
   return (
     <View style={styles.screen}>
@@ -106,7 +178,7 @@ export default function FindFacilitiesScreen() {
             return (
               <Pressable
                 key={filter}
-                onPress={() => setSelectedFilter(filter)}
+                onPress={() => setSelectedFilter((current) => (current === filter ? null : filter))}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 accessibilityLabel={`Filter by ${filter}`}
@@ -117,16 +189,31 @@ export default function FindFacilitiesScreen() {
           })}
         </ScrollView>
 
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {facilities.length > 0 ? (
-            facilities.map((facility) => <FacilityCard key={facility.id} facility={facility} />)
-          ) : (
-            <View style={styles.emptyBlock}>
-              <Ionicons name="search-outline" size={32} color={AuthColors.textSecondary} />
-              <Text style={styles.emptyText}>No facilities match your search.</Text>
-            </View>
-          )}
-        </ScrollView>
+        {status === 'loading' ? (
+          <View style={styles.centerBlock}>
+            <ActivityIndicator color={AuthColors.primary} size="large" />
+            <Text style={styles.loadingText}>Finding facilities near you…</Text>
+          </View>
+        ) : status === 'error' ? (
+          <View style={styles.centerBlock}>
+            <RetryErrorCard
+              message={errorMessage ?? 'Something went wrong.'}
+              onRetry={() => setAttempt((n) => n + 1)}
+              retryAccessibilityLabel="Retry finding nearby facilities"
+            />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+            {facilities.length > 0 ? (
+              facilities.map((facility) => <FacilityCard key={facility.id} facility={facility} />)
+            ) : (
+              <View style={styles.emptyBlock}>
+                <Ionicons name="search-outline" size={32} color={AuthColors.textSecondary} />
+                <Text style={styles.emptyText}>No facilities match your search nearby.</Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -242,6 +329,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: AuthColors.text,
   },
+  cardAddress: {
+    fontSize: 12,
+    color: AuthColors.textSecondary,
+  },
   cardMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -276,6 +367,9 @@ const styles = StyleSheet.create({
   statusPillClosed: {
     backgroundColor: AuthColors.dangerBackground,
   },
+  statusPillUnknown: {
+    backgroundColor: AuthColors.border,
+  },
   statusPillText: {
     fontSize: 11,
     fontWeight: '700',
@@ -283,6 +377,20 @@ const styles = StyleSheet.create({
   },
   statusPillTextClosed: {
     color: AuthColors.danger,
+  },
+  statusPillTextUnknown: {
+    color: AuthColors.textSecondary,
+  },
+  centerBlock: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+  },
+  loadingText: {
+    color: AuthColors.textSecondary,
+    fontSize: 14,
   },
   emptyBlock: {
     alignItems: 'center',

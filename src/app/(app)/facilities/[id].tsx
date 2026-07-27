@@ -8,7 +8,24 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AuthColors } from '@/constants/auth-theme';
 import { Spacing } from '@/constants/theme';
 import type { Doctor, Facility, FacilityHours } from '@/lib/health-navigation-types';
-import { getFacilityById } from '@/lib/mock-facilities';
+
+// No facilities backend exists yet — the facility is handed off from the
+// list screen as a serialized param (see facilities/index.tsx) rather than
+// re-fetched by id, since OSM/Overpass has no cheap "fetch by id" endpoint
+// and re-querying would risk showing slightly different live data than what
+// the citizen actually tapped.
+function parseFacilityParam(value: string | undefined): Facility | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && typeof parsed.id === 'string' && typeof parsed.name === 'string') {
+      return parsed as Facility;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 type TabKey = 'Services' | 'Doctors' | 'Hours';
 const TABS: TabKey[] = ['Services', 'Doctors', 'Hours'];
@@ -150,17 +167,20 @@ function BookAppointmentBar({ facility }: { facility: Facility }) {
 }
 
 export default function FacilityDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, facility: facilityParam } = useLocalSearchParams<{ id: string; facility?: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>('Services');
   const insets = useSafeAreaInsets();
 
-  const facility = id ? getFacilityById(id) : undefined;
+  const facility = parseFacilityParam(facilityParam);
 
   if (!facility) {
     return <ErrorState facilityId={id} />;
   }
 
-  const isOpen = facility.openStatus === 'open';
+  const statusStyle =
+    facility.openStatus === 'open' ? styles.statusOpen : facility.openStatus === 'closed' ? styles.statusClosed : styles.statusUnknown;
+  const statusFallbackText =
+    facility.openStatus === 'open' ? 'Open' : facility.openStatus === 'closed' ? 'Closed' : 'Hours unknown';
 
   return (
     <View style={styles.screen}>
@@ -198,12 +218,14 @@ export default function FacilityDetailScreen() {
         </View>
 
         <View style={styles.metaRow}>
-          <Ionicons name="star" size={14} color={AuthColors.accent} />
-          <Text style={styles.metaText}>{(facility.rating ?? 0).toFixed(1)}</Text>
-          <Text style={styles.dot}>·</Text>
-          <Text style={[styles.statusText, isOpen ? styles.statusOpen : styles.statusClosed]}>
-            {facility.hoursToday ?? (isOpen ? 'Open' : 'Closed')}
-          </Text>
+          {facility.rating !== undefined && (
+            <>
+              <Ionicons name="star" size={14} color={AuthColors.accent} />
+              <Text style={styles.metaText}>{facility.rating.toFixed(1)}</Text>
+              <Text style={styles.dot}>·</Text>
+            </>
+          )}
+          <Text style={[styles.statusText, statusStyle]}>{facility.hoursToday ?? statusFallbackText}</Text>
         </View>
 
         <Pressable
@@ -335,6 +357,9 @@ const styles = StyleSheet.create({
   },
   statusClosed: {
     color: AuthColors.danger,
+  },
+  statusUnknown: {
+    color: AuthColors.textSecondary,
   },
   mapButton: {
     backgroundColor: '#EFF6FF',
