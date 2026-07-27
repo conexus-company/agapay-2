@@ -12,7 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { QueueToast } from '@/components/queue-toast';
 import { useAppointments, type Appointment } from '@/hooks/use-appointments';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { useQueueStatus, type QueueStatus } from '@/hooks/use-queue-status';
 import { useTheme } from '@/hooks/use-theme';
 
 const STATUS_STYLES: Record<Appointment['status'], { bg: string; text: string; label: string }> = {
@@ -22,12 +25,31 @@ const STATUS_STYLES: Record<Appointment['status'], { bg: string; text: string; l
   no_show: { bg: Brand.dangerBg, text: Brand.dangerText, label: 'No Show' },
 };
 
+const QUEUE_STATUS_STYLES: Record<QueueStatus, { bg: string; text: string; label: string }> = {
+  waiting: { bg: Brand.mutedBg, text: Brand.mutedText, label: 'Waiting' },
+  called: { bg: Brand.infoBg, text: Brand.infoText, label: 'Called' },
+  completed: { bg: Brand.successBg, text: Brand.successText, label: 'Completed' },
+  no_show: { bg: Brand.dangerBg, text: Brand.dangerText, label: 'No Show' },
+};
+
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { items, loading, error, refresh, cancel } = useAppointments();
   const [cancelling, setCancelling] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkinError, setCheckinError] = useState<string | null>(null);
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+
+  usePushNotifications();
+
+  const { status: queueStatus, queueNumber } = useQueueStatus({
+    ticketId: activeTicketId,
+    onStatusChange: useCallback((newStatus: QueueStatus) => {
+      if (newStatus === 'called' || newStatus === 'completed') refresh();
+    }, [refresh]),
+  });
 
   useEffect(() => {
     refresh();
@@ -48,6 +70,37 @@ export default function AppointmentDetailScreen() {
     await cancel(id);
     setCancelling(false);
   }, [id, cancel]);
+
+  const handleCheckIn = useCallback(async () => {
+    if (!appointment) return;
+    setCheckingIn(true);
+    setCheckinError(null);
+
+    try {
+      const res = await fetch('/api/checkin/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facility_id: appointment.facility_id,
+          appointment_id: appointment.id,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setCheckinError(body.error ?? 'Check-in failed');
+        setCheckingIn(false);
+        return;
+      }
+
+      const data = await res.json();
+      setActiveTicketId(data.ticket_id);
+    } catch {
+      setCheckinError('Network error');
+    }
+
+    setCheckingIn(false);
+  }, [appointment]);
 
   if (loading && !appointment) {
     return (
@@ -103,6 +156,7 @@ export default function AppointmentDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <QueueToast status={queueStatus} queueNumber={queueNumber} ticketId={activeTicketId} />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -151,6 +205,43 @@ export default function AppointmentDetailScreen() {
               <Text style={styles.detailValue}>{timeStr}</Text>
             </View>
           </View>
+
+          {activeTicketId && queueStatus && queueNumber && (
+            <View style={styles.card}>
+              <View style={styles.refSection}>
+                <Text style={styles.refLabel}>Queue Status</Text>
+                <View style={styles.refRow}>
+                  <Text style={styles.refNumber}>{queueNumber}</Text>
+                </View>
+              </View>
+              <View style={[styles.statusRow, { backgroundColor: QUEUE_STATUS_STYLES[queueStatus].bg }]}>
+                <Text style={[styles.statusText, { color: QUEUE_STATUS_STYLES[queueStatus].text }]}>
+                  {QUEUE_STATUS_STYLES[queueStatus].label}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {appointment.status === 'confirmed' && !activeTicketId && (
+            <Pressable
+              onPress={handleCheckIn}
+              disabled={checkingIn}
+              style={({ pressed }) => [
+                styles.checkinButton,
+                pressed && { opacity: 0.85 },
+                checkingIn && { opacity: 0.5 },
+              ]}>
+              {checkingIn ? (
+                <ActivityIndicator color={Brand.surface} />
+              ) : (
+                <Text style={styles.checkinText}>Check In</Text>
+              )}
+            </Pressable>
+          )}
+
+          {checkinError && (
+            <Text style={styles.checkinError}>{checkinError}</Text>
+          )}
 
           {appointment.status === 'confirmed' && (
             <Pressable
@@ -239,6 +330,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelText: { fontSize: 15, fontWeight: '600', color: Brand.danger },
+  checkinButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: Brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkinText: { fontSize: 15, fontWeight: '600', color: Brand.surface },
+  checkinError: { fontSize: 14, color: Brand.danger, textAlign: 'center' },
   secondaryBtn: {
     minHeight: 48,
     borderRadius: 12,

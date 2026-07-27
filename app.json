@@ -45,6 +45,13 @@
           "requestLocationPermission": true,
           "locationPermission": "Allow AGAPAY to use your location to find nearby healthcare facilities."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1E3A8A"
+        }
       ]
     ],
     "experiments": {
