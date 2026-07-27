@@ -60,14 +60,7 @@ function handleServicePress(tile: ServiceTileDef) {
 }
 
 function openAiAssistant() {
-  router.push({
-    pathname: '/coming-soon',
-    params: {
-      title: 'AI Health Assistant',
-      subtitle: 'Get answers to your health questions, anytime.',
-      icon: 'help-circle-outline',
-    },
-  });
+  router.push('/health-navigation');
 }
 
 function HomeHeader({ fullName }: { fullName: string | null }) {
