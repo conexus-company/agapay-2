@@ -1,10 +1,11 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
-import { useAuth } from '@/contexts/auth-context';
+import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
 import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
 
 type RunState =
@@ -19,7 +20,7 @@ type RunState =
  * without going through the (not-yet-available) real login page.
  */
 export default function DevLoginScreen() {
-  const { signIn } = useAuth();
+  const { beginSetup } = useHealthProfileSetup();
   const [code, setCode] = useState('');
   const [result, setResult] = useState<RunState>({ status: 'idle' });
   const [showDetails, setShowDetails] = useState(false);
@@ -145,7 +146,10 @@ export default function DevLoginScreen() {
               onPress={() => {
                 const session = pendingSession;
                 setPendingSession(null);
-                if (session) signIn(session);
+                if (session) {
+                  beginSetup(session);
+                  router.push('/health-profile-setup');
+                }
               }}
               accessibilityRole="button"
               accessibilityLabel="Continue to Home"

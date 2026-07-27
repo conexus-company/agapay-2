@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
 import { EGOV_SSO_AUTHORIZE_URL, getEgovSsoRedirectUri } from '@/constants/egov-sso';
-import { useAuth } from '@/contexts/auth-context';
+import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
 import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
 import type { ApiResult } from '@/lib/api-result';
 
@@ -43,7 +43,7 @@ function describeFailure(step: 'token' | 'profile', result: ApiResult<unknown>):
 }
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { beginSetup } = useHealthProfileSetup();
   const [state, setState] = useState<FlowState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const ctaScale = useSharedValue(1);
@@ -89,9 +89,10 @@ export default function LoginScreen() {
 
     setState('success');
     setTimeout(() => {
-      signIn({ sessionToken: tokenResult.data.sessionToken, profile: profileResult.data });
+      beginSetup({ sessionToken: tokenResult.data.sessionToken, profile: profileResult.data });
+      router.push('/health-profile-setup');
     }, 700);
-  }, [signIn]);
+  }, [beginSetup]);
 
   const isBusy = state === 'authorizing' || state === 'exchanging' || state === 'success';
 
