@@ -1,7 +1,5 @@
-import { getFaceLivenessConfig, getLivenessResult } from '@/lib/face-liveness';
+import { getFaceLivenessConfig, getLivenessResult, isLivenessVerified } from '@/lib/face-liveness';
 import type { ApiResult } from '@/lib/api-result';
-
-const MIN_CONFIDENCE_SCORE = 95;
 
 function upstreamFailureResponse(step: string, result: ApiResult<unknown>) {
   if (result.ok) {
@@ -42,12 +40,5 @@ export async function GET(_request: Request, { sessionToken }: Record<string, st
   }
 
   const body = result.data;
-  const status = body && typeof body === 'object' ? (body as { status?: unknown }).status : undefined;
-  const confidenceScore =
-    body && typeof body === 'object' ? (body as { confidence_score?: unknown }).confidence_score : undefined;
-
-  const verified =
-    status === 'SUCCEEDED' && typeof confidenceScore === 'number' && confidenceScore >= MIN_CONFIDENCE_SCORE;
-
-  return Response.json({ ...(body as object), verified });
+  return Response.json({ ...(body as object), verified: isLivenessVerified(body) });
 }
