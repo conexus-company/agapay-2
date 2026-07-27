@@ -3,11 +3,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomTabInset, Colors, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { useDigitalHealthId } from '@/hooks/use-digital-health-id';
 
 const light = Colors.light;
 
 export default function HomeScreen() {
   const { signOut } = useAuth();
+  const { id: healthId, fullName, loading: healthIdLoading } = useDigitalHealthId();
 
   return (
     <View style={[styles.container, { backgroundColor: light.background }]}>
@@ -15,9 +17,24 @@ export default function HomeScreen() {
         <View style={styles.heroSection}>
           <Text style={[styles.title, { color: light.text }]}>Welcome to AGAPAY</Text>
           <Text style={[styles.subtitle, { color: light.textSecondary }]}>
-            Your Digital Health Profile is coming soon.
+            Your Digital Healthcare Journey, Connected Once.
           </Text>
         </View>
+
+        {!healthIdLoading && (
+          <View style={[styles.stepContainer, { backgroundColor: light.backgroundElement }]}>
+            <View style={styles.authRow}>
+              <Text style={[styles.authLabel, { color: light.text }]}>
+                {healthId ? 'Digital Health ID Active' : 'Digital Health ID'}
+              </Text>
+              {healthId && fullName ? (
+                <Text style={[styles.authValue, { color: light.textSecondary }]} numberOfLines={1}>
+                  {fullName}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
 
         {__DEV__ && (
           <View style={[styles.stepContainer, { backgroundColor: light.backgroundElement }]}>
@@ -97,5 +114,10 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontWeight: Platform.select({ android: '700' as const }) ?? '500',
     fontSize: 12,
+  },
+  authValue: {
+    fontSize: 12,
+    fontFamily: Fonts.mono,
+    maxWidth: 160,
   },
 });
