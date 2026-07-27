@@ -141,6 +141,17 @@ function ErrorState({ facilityId }: { facilityId: string | undefined }) {
   );
 }
 
+// Choose a Doctor (the screen that should precede Schedule Selection) hasn't
+// been built yet, so this bridges straight in with the facility's first
+// listed doctor — or a generic placeholder when the facility has none —
+// until that screen exists and can hand off a real selection instead.
+function resolveBookingDoctor(facility: Facility): Doctor {
+  if (facility.doctors && facility.doctors.length > 0) {
+    return facility.doctors[0];
+  }
+  return { id: 'general-consult', name: 'Available Doctor', specialty: 'General Practice' };
+}
+
 function BookAppointmentBar({ facility }: { facility: Facility }) {
   const insets = useSafeAreaInsets();
   return (
@@ -148,12 +159,11 @@ function BookAppointmentBar({ facility }: { facility: Facility }) {
       <Pressable
         onPress={() =>
           router.push({
-            pathname: '/coming-soon',
+            pathname: '/appointments/schedule-selection',
             params: {
-              title: 'Book Appointment',
-              subtitle: `Booking at ${facility.name} is coming soon.`,
-              icon: 'calendar-outline',
+              doctor: JSON.stringify(resolveBookingDoctor(facility)),
               facilityId: facility.id,
+              facilityName: facility.name,
             },
           })
         }

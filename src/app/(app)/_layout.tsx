@@ -7,6 +7,7 @@ export default function AppLayout() {
       <Stack.Screen name="health-id" />
       <Stack.Screen name="health-navigation" />
       <Stack.Screen name="facilities" />
+      <Stack.Screen name="appointments" />
       <Stack.Screen name="coming-soon" />
     </Stack>
   );
