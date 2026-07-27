@@ -23,6 +23,21 @@ export type TriageResult = {
 
 export type FacilityOpenStatus = 'open' | 'closed' | 'unknown';
 
+export type FacilityType = 'Government' | 'Private';
+
+export type Doctor = {
+  id: string;
+  name: string;
+  specialty: string;
+  photoUrl?: string;
+};
+
+export type FacilityHours = {
+  day: string;
+  open: string;
+  close: string;
+};
+
 export type Facility = {
   id: string;
   name: string;
@@ -30,4 +45,16 @@ export type Facility = {
   openStatus: FacilityOpenStatus;
   lat: number;
   lng: number;
+  // The fields below are only populated for facilities sourced from the
+  // Healthcare Discovery mock/catalog (Find Facilities list + detail
+  // screen), not for OSM-derived results from the AI triage flow.
+  icon?: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
+  address?: string;
+  rating?: number;
+  isVerified?: boolean;
+  hoursToday?: string;
+  type?: FacilityType;
+  services?: string[];
+  doctors?: Doctor[];
+  hours?: FacilityHours[];
 };

@@ -1,27 +1,19 @@
-import { router } from "expo-router";
-import { useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthColors } from "@/constants/auth-theme";
-import { getEgovLivenessRedirectUri } from "@/constants/egov-sso";
-import { useHealthProfileSetup } from "@/contexts/health-profile-setup-context";
-import { startVerification } from "@/lib/egov-sso-client";
+import { AuthColors } from '@/constants/auth-theme';
+import { getEgovLivenessRedirectUri } from '@/constants/egov-sso';
+import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
+import { getVerificationStatus, startVerification } from '@/lib/egov-sso-client';
 
 type RunState =
-  | { status: "idle" }
-  | { status: "starting" }
-  | { status: "completed"; profile: unknown }
-  | { status: "error"; message: string };
+  | { status: 'idle' }
+  | { status: 'starting' }
+  | { status: 'completed'; profile: unknown }
+  | { status: 'error'; message: string };
 
 /**
  * Dev-only sandbox tester: lets a tester paste a manually-obtained eGov
@@ -31,8 +23,8 @@ type RunState =
  */
 export default function DevLoginScreen() {
   const { beginSetup } = useHealthProfileSetup();
-  const [code, setCode] = useState("");
-  const [result, setResult] = useState<RunState>({ status: "idle" });
+  const [code, setCode] = useState('');
+  const [result, setResult] = useState<RunState>({ status: 'idle' });
   const [showDetails, setShowDetails] = useState(false);
 
   // Hooks above run unconditionally; nothing below executes in production.
@@ -58,7 +50,7 @@ export default function DevLoginScreen() {
       return;
     }
 
-    setResult({ status: "completed", profile: startResult.data.profile });
+    setResult({ status: 'completed', profile: startResult.data.profile });
   };
 
   return (
@@ -67,8 +59,8 @@ export default function DevLoginScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.title}>Dev: Sandbox eGov SSO</Text>
           <Text style={styles.subtitle}>
-            Paste a sandbox exchange_code from the eGov test portal to run the
-            SSO exchange. This screen is excluded from production builds.
+            Paste a sandbox exchange_code from the eGov test portal to run the SSO exchange. This screen is
+            excluded from production builds.
           </Text>
 
           <TextInput
@@ -84,7 +76,7 @@ export default function DevLoginScreen() {
 
           <Pressable
             onPress={start}
-            disabled={result.status === "starting"}
+            disabled={result.status === 'starting'}
             accessibilityRole="button"
             accessibilityLabel="Start verification"
             style={styles.button}
@@ -102,17 +94,14 @@ export default function DevLoginScreen() {
             </Animated.View>
           )}
 
-          {result.status === "completed" && (
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              style={styles.resultBlock}
-            >
+          {result.status === 'completed' && (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.resultBlock}>
               <Text style={styles.successText}>✓ SSO profile retrieved</Text>
 
               <Pressable
                 onPress={() => {
                   beginSetup({ profile: result.profile, everify: null });
-                  router.push("/health-profile-setup");
+                  router.push('/health-profile-setup');
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Use this identity and continue into the app"
@@ -191,19 +180,10 @@ const styles = StyleSheet.create({
     borderColor: AuthColors.border,
     padding: 14,
   },
-  successText: { color: AuthColors.success, fontSize: 14, fontWeight: "600" },
-  toggle: { minHeight: 44, alignItems: "center", justifyContent: "center" },
-  toggleText: {
-    color: AuthColors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  successText: { color: AuthColors.success, fontSize: 14, fontWeight: '600' },
+  toggle: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  toggleText: { color: AuthColors.textSecondary, fontSize: 12, fontWeight: '600' },
   details: { gap: 6 },
-  resultLabel: {
-    color: AuthColors.textSecondary,
-    fontSize: 11,
-    textTransform: "uppercase",
-    marginTop: 8,
-  },
-  resultText: { color: AuthColors.text, fontSize: 12, fontFamily: "monospace" },
+  resultLabel: { color: AuthColors.textSecondary, fontSize: 11, textTransform: 'uppercase', marginTop: 8 },
+  resultText: { color: AuthColors.text, fontSize: 12, fontFamily: 'monospace' },
 });

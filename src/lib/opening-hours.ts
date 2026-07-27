@@ -46,6 +46,67 @@ function parseTimeRanges(token: string): [number, number][] | null {
 
 export type OpenNowResult = 'open' | 'closed' | 'unknown';
 
+export type WeekHours = { day: string; open: string; close: string };
+
+const WEEK_DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function minutesToClock(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+    .toString()
+    .padStart(2, '0');
+  const mins = (minutes % 60).toString().padStart(2, '0');
+  return `${hours}:${mins}`;
+}
+
+/**
+ * Expands an OSM `opening_hours` string into a Mon–Sun schedule. Reuses the
+ * same day/time-range grammar as `evaluateOpeningHours` above. Returns
+ * `null` (rather than guessing) for syntax it doesn't recognize, or for
+ * multi-range days (e.g. a lunch break) it collapses to a single
+ * earliest-open/latest-close span since the UI only shows one range per day.
+ */
+export function expandOpeningHoursToWeek(value: string): WeekHours[] | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+
+  if (trimmed === '24/7') {
+    return WEEK_DAY_NAMES.map((day) => ({ day, open: '00:00', close: '23:59' }));
+  }
+
+  const perDay: ([number, number][] | 'off' | null)[] = new Array(7).fill(null);
+
+  for (const rawRule of trimmed.split(';')) {
+    const rule = rawRule.trim();
+    if (rule.length === 0) continue;
+
+    const isOff = /\boff\s*$/.test(rule);
+    const dayToken = isOff ? rule.replace(/\s*off\s*$/, '').trim() : rule.split(/\s+/)[0];
+    const timeToken = isOff ? null : rule.slice(dayToken.length).trim();
+
+    const days = expandDays(dayToken);
+    if (days === null) return null;
+
+    if (isOff) {
+      for (const day of days) perDay[day] = 'off';
+      continue;
+    }
+
+    if (!timeToken || timeToken.length === 0) return null;
+    const ranges = parseTimeRanges(timeToken);
+    if (ranges === null) return null;
+
+    for (const day of days) perDay[day] = ranges;
+  }
+
+  return WEEK_DAY_NAMES.map((day, index) => {
+    const entry = perDay[index];
+    if (!entry || entry === 'off') return { day, open: '', close: '' };
+    const open = Math.min(...entry.map(([start]) => start));
+    const close = Math.max(...entry.map(([, end]) => end));
+    return { day, open: minutesToClock(open), close: minutesToClock(close) };
+  });
+}
+
 export function evaluateOpeningHours(value: string, now: Date = new Date()): OpenNowResult {
   const trimmed = value.trim();
   if (trimmed.length === 0) return 'unknown';
