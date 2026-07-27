@@ -52,6 +52,10 @@ function handleServicePress(tile: ServiceTileDef) {
     router.push('/health-id');
     return;
   }
+  if (tile.key === 'facilities') {
+    router.push('/facilities');
+    return;
+  }
   router.push({
     pathname: '/coming-soon',
     params: { title: tile.label, subtitle: tile.subtitle, icon: tile.icon },
