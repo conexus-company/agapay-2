@@ -99,6 +99,23 @@ export function resolveFullName(profile: unknown): string | null {
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
+// PLACEHOLDER: same situation as SUBJECT_ID_CANDIDATE_KEYS above — the
+// hackathon eGov SSO sandbox hasn't confirmed the exact field name for the
+// citizen's mobile number, so this tries the plausible candidates. Trim to
+// the real key once eGov confirms it.
+const MOBILE_NUMBER_CANDIDATE_KEYS = ['mobile_number', 'mobile_no', 'phone_number', 'contact_number', 'msisdn'];
+
+export function resolveMobileNumber(profile: unknown): string | null {
+  const fields = unwrapCitizenFields(profile);
+
+  for (const key of MOBILE_NUMBER_CANDIDATE_KEYS) {
+    const value = stringField(fields, key);
+    if (value) return value;
+  }
+
+  return null;
+}
+
 export async function createOrGetHealthProfile(profile: unknown): Promise<ApiResult<HealthProfile>> {
   const { data, error } = await supabase.functions.invoke<HealthProfile>('generate-health-id', {
     body: {
