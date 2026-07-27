@@ -1,4 +1,5 @@
 import { parseJsonBody } from '@/lib/api-result';
+import { normalizeRecommendations } from '@/lib/ai/recommendation';
 
 export async function POST(request: Request) {
   let rawBody: unknown;
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   const accessCode = process.env.EGOV_AI_ACCESS_CODE;
 
   if (!accessCode) {
-    return Response.json({
+    const fallback = normalizeRecommendations({
       recommendations: [
         {
           service: 'General Consultation',
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
         },
       ],
     });
+    return Response.json({ recommendations: fallback });
   }
 
   let response: Response;
@@ -60,13 +62,7 @@ export async function POST(request: Request) {
   }
 
   const upstreamBody = await parseJsonBody(response);
+  const normalized = normalizeRecommendations(upstreamBody);
 
-  const recommendations =
-    upstreamBody &&
-    typeof upstreamBody === 'object' &&
-    'recommendations' in upstreamBody
-      ? (upstreamBody as { recommendations?: unknown }).recommendations
-      : [];
-
-  return Response.json({ recommendations });
+  return Response.json({ recommendations: normalized });
 }

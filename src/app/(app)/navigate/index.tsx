@@ -13,15 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomTabInset, Colors, Spacing } from '@/constants/theme';
+import { useEmergencyDetection } from '@/hooks/use-emergency-detection';
 import { useTheme } from '@/hooks/use-theme';
-
-const light = Colors.light;
-
-type Recommendation = {
-  service: string;
-  reason: string;
-  action: string;
-};
+import type { Recommendation } from '@/lib/ai/recommendation';
+import { EmergencyModal, RecommendationCard } from '@/components/recommendation-card';
 
 type FlowState = 'idle' | 'loading' | 'results' | 'error';
 
@@ -31,11 +26,9 @@ export default function NavigateScreen() {
   const [flowState, setFlowState] = useState<FlowState>('idle');
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const emergency = useEmergencyDetection();
 
-  const handleSubmit = useCallback(async () => {
-    const trimmed = description.trim();
-    if (!trimmed) return;
-
+  const doSubmit = useCallback(async (text: string) => {
     Keyboard.dismiss();
     setFlowState('loading');
     setError(null);
@@ -45,7 +38,7 @@ export default function NavigateScreen() {
       const response = await fetch('/api/ai/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: trimmed }),
+        body: JSON.stringify({ description: text }),
       });
 
       if (!response.ok) {
@@ -62,7 +55,29 @@ export default function NavigateScreen() {
       setError('Network error — check your connection');
       setFlowState('error');
     }
-  }, [description]);
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    const trimmed = description.trim();
+    if (!trimmed) return;
+
+    if (emergency.check(trimmed)) return;
+
+    doSubmit(trimmed);
+  }, [description, emergency, doSubmit]);
+
+  const handleEmergencyContinue = useCallback(() => {
+    emergency.dismiss();
+    doSubmit(description.trim());
+  }, [emergency, description, doSubmit]);
+
+  const handleActionPress = useCallback((rec: Recommendation) => {
+    if (rec.action === 'find_facilities') {
+      router.push('/explore');
+    } else if (rec.action === 'book_now') {
+      router.push('/explore');
+    }
+  }, []);
 
   const isBusy = flowState === 'loading';
   const canSubmit = description.trim().length > 0 && !isBusy;
@@ -84,7 +99,10 @@ export default function NavigateScreen() {
           <View style={styles.inputSection}>
             <TextInput
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(text) => {
+                setDescription(text);
+                if (text.trim().length === 0) emergency.reset();
+              }}
               placeholder="e.g., I have a fever and sore throat..."
               placeholderTextColor={theme.textSecondary}
               multiline
@@ -139,28 +157,27 @@ export default function NavigateScreen() {
                 Recommended services
               </Text>
               {recommendations.map((rec, index) => (
-                <View key={`${rec.service}-${index}`} style={[styles.card, { borderColor: '#E2E6EC' }]}>
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>{rec.service}</Text>
-                  <Text style={[styles.cardReason, { color: theme.textSecondary }]}>{rec.reason}</Text>
-                  <Pressable
-                    onPress={() => router.push('/explore')}
-                    style={({ pressed }) => [
-                      styles.cardButton,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Find facilities for ${rec.service}`}>
-                    <Text style={styles.cardButtonText}>Find Facilities</Text>
-                  </Pressable>
-                </View>
+                <RecommendationCard
+                  key={`${rec.service}-${index}`}
+                  recommendation={rec}
+                  onActionPress={handleActionPress}
+                />
               ))}
             </View>
           )}
         </ScrollView>
       </SafeAreaView>
+
+      <EmergencyModal
+        visible={emergency.showEmergencyModal}
+        onDismiss={emergency.dismiss}
+        onContinue={handleEmergencyContinue}
+      />
     </View>
   );
 }
+
+const light = Colors.light;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -249,35 +266,5 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: Spacing.one,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: Spacing.four,
-    gap: Spacing.two,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    lineHeight: 24,
-  },
-  cardReason: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  cardButton: {
-    minHeight: 40,
-    borderRadius: 10,
-    backgroundColor: '#F0F0F3',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    marginTop: Spacing.one,
-  },
-  cardButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2563EB',
   },
 });
