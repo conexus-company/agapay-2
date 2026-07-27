@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 // Keyed by health_profiles.verification_level. Add higher levels here as
 // A-003 (eVerify) / A-004 (Face Liveness) ship — nothing else about this
 // component needs to change.
-const VERIFICATION_LEVELS: Record<string, { label: string; background: string; foreground: string }> = {
+export const VERIFICATION_LEVELS: Record<string, { label: string; background: string; foreground: string }> = {
   sso_only: {
     label: 'Identity Verified — eGov SSO',
     background: '#DBEAFE',
@@ -21,7 +21,7 @@ const VERIFICATION_LEVELS: Record<string, { label: string; background: string; f
   },
 };
 
-const FALLBACK_LEVEL = { label: 'Identity Verified', background: '#DBEAFE', foreground: '#1D4ED8' };
+export const FALLBACK_LEVEL = { label: 'Identity Verified', background: '#DBEAFE', foreground: '#1D4ED8' };
 
 export function VerificationBadge({ level }: { level: string }) {
   const known = VERIFICATION_LEVELS[level];
