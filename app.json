@@ -17,7 +17,12 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_ANDROID_API_KEY"
+        }
+      }
     },
     "web": {
       "output": "server",
@@ -35,9 +40,18 @@
       ],
       "expo-secure-store",
       [
-        "expo-location",
+      [
+        "expo-maps",
         {
-          "locationWhenInUsePermission": "AGAPAY uses your location to find nearby healthcare facilities."
+          "requestLocationPermission": true,
+          "locationPermission": "Allow AGAPAY to use your location to find nearby healthcare facilities."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1E3A8A"
         }
       ]
     ],
