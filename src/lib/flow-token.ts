@@ -7,7 +7,6 @@ export type FlowPayload = {
   last_name: string;
   suffix: string | null;
   birth_date: string;
-  livenessToken: string;
 };
 
 function toBase64Url(bytes: Uint8Array): string {

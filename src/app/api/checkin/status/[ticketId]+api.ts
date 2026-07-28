@@ -1,9 +1,13 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ ticketId: string }> },
 ) {
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   const { ticketId } = await params;
 
   const authHeader = request.headers.get('Authorization');
@@ -19,7 +23,7 @@ export async function GET(
 
   const citizenHash = `stub-hash-${token.slice(0, 8)}`;
 
-  const { data: ticket, error } = await supabase
+  const { data: ticket, error } = await supabaseAdmin
     .from('queue_tickets')
     .select('id, queue_number, facility_id, service_type, status, checked_in_at, called_at, completed_at')
     .eq('id', ticketId)

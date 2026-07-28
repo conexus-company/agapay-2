@@ -1,13 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { clearSessionToken, loadSessionToken, saveSessionToken } from '@/lib/auth-storage';
+import { clearIdentity, loadIdentity, saveIdentity } from '@/lib/auth-storage';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
 export type AuthSession = {
-  sessionToken: string;
-  /** Citizen profile from the current sign-in. Not persisted — null after an app relaunch. */
+  /** Citizen profile confirmed via eGov SSO. */
   profile: unknown;
+  /** eVerify result confirming the identity against a completed Face Liveness session. */
+  everify: unknown;
 };
 
 type AuthContextValue = {
@@ -26,10 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    loadSessionToken().then((sessionToken) => {
+    loadIdentity().then((identity) => {
       if (cancelled) return;
-      if (sessionToken) {
-        setSession({ sessionToken, profile: null });
+      if (identity) {
+        setSession(identity);
         setStatus('signedIn');
       } else {
         setStatus('signedOut');
@@ -42,13 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (next: AuthSession) => {
-    await saveSessionToken(next.sessionToken);
+    await saveIdentity(next);
     setSession(next);
     setStatus('signedIn');
   }, []);
 
   const signOut = useCallback(async () => {
-    await clearSessionToken();
+    await clearIdentity();
     setSession(null);
     setStatus('signedOut');
   }, []);

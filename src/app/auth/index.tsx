@@ -8,16 +8,16 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
-import { EGOV_SSO_AUTHORIZE_URL, getEgovSsoRedirectUri } from '@/constants/egov-sso';
-import { useAuth } from '@/contexts/auth-context';
-import { exchangeCodeForSession, fetchCitizenProfile } from '@/lib/egov-sso-client';
+import { EGOV_SSO_AUTHORIZE_URL, getEgovLivenessRedirectUri, getEgovSsoRedirectUri } from '@/constants/egov-sso';
+import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
+import { startVerification } from '@/lib/egov-sso-client';
 import type { ApiResult } from '@/lib/api-result';
 
 WebBrowser.maybeCompleteAuthSession();
 
-type FlowState = 'idle' | 'authorizing' | 'exchanging' | 'success' | 'error';
+type FlowState = 'idle' | 'authorizing' | 'starting' | 'success' | 'error';
 
-function describeFailure(step: 'token' | 'profile', result: ApiResult<unknown>): string {
+function describeFailure(result: ApiResult<unknown>): string {
   if (result.ok) {
     return 'Something went wrong. Please try again.';
   }
@@ -27,14 +27,11 @@ function describeFailure(step: 'token' | 'profile', result: ApiResult<unknown>):
   }
 
   if (result.kind === 'upstream_error') {
-    if (step === 'token' && result.status === 403) {
-      return "We couldn't verify your eGov SSO credentials. Please try again.";
-    }
-    if (step === 'token' && result.status === 422) {
+    if (result.status === 422) {
       return 'This sign-in link has expired or was already used. Please start again.';
     }
-    if (step === 'profile' && result.status === 401) {
-      return 'Your session has expired. Please sign in again.';
+    if (result.status === 403) {
+      return "We couldn't verify your eGov SSO credentials. Please try again.";
     }
     return 'Something went wrong on our end. Please try again in a moment.';
   }
@@ -43,12 +40,17 @@ function describeFailure(step: 'token' | 'profile', result: ApiResult<unknown>):
 }
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { beginSetup } = useHealthProfileSetup();
   const [state, setState] = useState<FlowState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const ctaScale = useSharedValue(1);
   const ctaAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
 
+  // Face Liveness + eVerify are temporarily disconnected from the sign-in
+  // flow (the eGov Face Liveness sandbox SDK hangs after capture) — eGov SSO
+  // alone is enough to reach the dashboard for now. Re-enabling later just
+  // means routing through the liveness step + verify/status check again
+  // before beginSetup(), same as this used to.
   const runLogin = useCallback(async () => {
     setErrorMessage(null);
     setState('authorizing');
@@ -71,41 +73,48 @@ export default function LoginScreen() {
       return;
     }
 
-    setState('exchanging');
+    setState('starting');
 
-    const tokenResult = await exchangeCodeForSession(exchangeCode);
-    if (!tokenResult.ok) {
-      setErrorMessage(describeFailure('token', tokenResult));
-      setState('error');
-      return;
-    }
-
-    const profileResult = await fetchCitizenProfile(tokenResult.data.sessionToken);
-    if (!profileResult.ok) {
-      setErrorMessage(describeFailure('profile', profileResult));
+    const startResult = await startVerification(exchangeCode, getEgovLivenessRedirectUri());
+    if (!startResult.ok) {
+      setErrorMessage(describeFailure(startResult));
       setState('error');
       return;
     }
 
     setState('success');
     setTimeout(() => {
-      signIn({ sessionToken: tokenResult.data.sessionToken, profile: profileResult.data });
+      beginSetup({ profile: startResult.data.profile, everify: null });
+      router.push('/health-profile-setup');
     }, 700);
-  }, [signIn]);
+  }, [beginSetup]);
 
-  const isBusy = state === 'authorizing' || state === 'exchanging' || state === 'success';
+  const isBusy = state === 'authorizing' || state === 'starting' || state === 'success';
 
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.hero}>
-          <Image
-            source={require('@/assets/images/logo.png')}
-            style={styles.logo}
-            contentFit="contain"
-            accessibilityLabel="AGAPAY"
-          />
+          <View style={styles.logoWrap}>
+            <Image
+              source={require('@/assets/images/logo-glow.png')}
+              style={styles.logoGlow}
+              contentFit="contain"
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={styles.logo}
+              contentFit="contain"
+              accessibilityLabel="AGAPAY"
+            />
+          </View>
           <Text style={styles.tagline}>Your healthcare journey, verified and secure.</Text>
+          <View style={styles.flagAccent} accessibilityElementsHidden importantForAccessibility="no">
+            <View style={styles.flagAccentBar} />
+            <View style={[styles.flagAccentBar, styles.flagAccentBarRed]} />
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -119,13 +128,15 @@ export default function LoginScreen() {
             </Animated.View>
           ) : null}
 
-          {state === 'success' ? (
+          {state === 'success' && (
             <Animated.View entering={FadeIn.duration(250)} style={styles.statusRow}>
               <Text style={styles.successText} accessibilityLiveRegion="polite">
                 Signed in — setting up your profile…
               </Text>
             </Animated.View>
-          ) : (
+          )}
+
+          {state !== 'success' && (
             <Animated.View
               entering={FadeIn.duration(200)}
               exiting={FadeOut.duration(150)}
@@ -144,9 +155,10 @@ export default function LoginScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Continue with eGov SSO"
                 accessibilityState={{ disabled: isBusy, busy: isBusy }}
+                android_ripple={{ color: AuthColors.primaryPressed }}
                 style={({ pressed }) => [styles.ctaInner, pressed && styles.ctaPressed]}>
                 {isBusy ? (
-                  <ActivityIndicator color={AuthColors.onPrimary} />
+                  <ActivityIndicator color={AuthColors.accent} />
                 ) : (
                   <Text style={styles.ctaText}>Continue with eGov SSO</Text>
                 )}
@@ -160,6 +172,7 @@ export default function LoginScreen() {
                 onPress={runLogin}
                 accessibilityRole="button"
                 accessibilityLabel="Retry sign in"
+                android_ripple={{ color: AuthColors.border }}
                 style={styles.retry}>
                 <Text style={styles.retryText}>Try again</Text>
               </Pressable>
@@ -173,13 +186,24 @@ export default function LoginScreen() {
         </View>
 
         {__DEV__ && (
-          <Pressable
-            onPress={() => router.push('/auth/dev-login')}
-            accessibilityRole="button"
-            accessibilityLabel="Open developer sandbox sign-in"
-            style={styles.devLink}>
-            <Text style={styles.devLinkText}>Developer: test with sandbox exchange code</Text>
-          </Pressable>
+          <>
+            <Pressable
+              onPress={() => router.push('/auth/dev-login')}
+              accessibilityRole="button"
+              accessibilityLabel="Open developer sandbox sign-in"
+              android_ripple={{ color: AuthColors.border }}
+              style={styles.devLink}>
+              <Text style={styles.devLinkText}>Developer: test with sandbox exchange code</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/auth/quick-login')}
+              accessibilityRole="button"
+              accessibilityLabel="Open developer quick login"
+              android_ripple={{ color: AuthColors.border }}
+              style={styles.devLink}>
+              <Text style={styles.devLinkText}>Developer: quick login (skip liveness/eVerify)</Text>
+            </Pressable>
+          </>
         )}
       </SafeAreaView>
     </View>
@@ -190,8 +214,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: AuthColors.background },
   safeArea: { flex: 1, justifyContent: 'space-between', padding: 24 },
   hero: { alignItems: 'center', gap: 12, marginTop: 48 },
-  logo: { width: '70%', maxWidth: 260, aspectRatio: 1689 / 624 },
+  logoWrap: { width: 220, height: 220, alignItems: 'center', justifyContent: 'center' },
+  logoGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  logo: { width: 190, aspectRatio: 1689 / 624 },
   tagline: { color: AuthColors.textSecondary, fontSize: 15, textAlign: 'center' },
+  flagAccent: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  flagAccentBar: { width: 28, height: 4, borderRadius: 2, backgroundColor: AuthColors.accent },
+  flagAccentBarRed: { backgroundColor: AuthColors.danger },
   card: {
     backgroundColor: AuthColors.surface,
     borderRadius: 16,
@@ -208,6 +237,7 @@ const styles = StyleSheet.create({
   ctaInner: {
     flex: 1,
     minHeight: 48,
+    borderRadius: 12,
     backgroundColor: AuthColors.primary,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,5 +1,4 @@
 import { callSsoAuthentication, exchangeCodeForToken, getEgovSsoConfig } from '@/lib/egov-sso';
-import { createLivenessSession, getFaceLivenessConfig } from '@/lib/face-liveness';
 import { encodeFlowToken } from '@/lib/flow-token';
 import type { ApiResult } from '@/lib/api-result';
 
@@ -32,6 +31,8 @@ function upstreamFailureResponse(service: string, step: string, result: ApiResul
 }
 
 export async function POST(request: Request) {
+  console.log('[verify/start] request received');
+
   let rawBody: unknown = {};
   try {
     rawBody = (await request.json()) ?? {};
@@ -49,14 +50,22 @@ export async function POST(request: Request) {
     return Response.json({ error: 'exchange_code is required' }, { status: 400 });
   }
 
+  const callbackUrl =
+    typeof body.callback_url === 'string' && body.callback_url.length > 0
+      ? body.callback_url
+      : process.env.EGOV_LIVENESS_CALLBACK_URL;
+
+  if (!callbackUrl) {
+    return Response.json({ error: 'callback_url is required' }, { status: 400 });
+  }
+
   const ssoConfig = getEgovSsoConfig();
-  const livenessConfig = getFaceLivenessConfig();
-  if (!ssoConfig || !livenessConfig) {
-    console.error('verify/start called with missing eGov SSO or Face Liveness env config');
+  if (!ssoConfig) {
+    console.error('verify/start called with missing eGov SSO env config');
     return Response.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
-  const tokenResult = await exchangeCodeForToken({ ...ssoConfig, exchangeCode });
+  const tokenResult = await exchangeCodeForToken(ssoConfig, exchangeCode);
   if (!tokenResult.ok) {
     return upstreamFailureResponse('eGov SSO', 'token', tokenResult);
   }
@@ -64,19 +73,6 @@ export async function POST(request: Request) {
   const profileResult = await callSsoAuthentication(ssoConfig, tokenResult.data);
   if (!profileResult.ok) {
     return upstreamFailureResponse('eGov SSO', 'sso_authentication', profileResult);
-  }
-
-  const sessionResult = await createLivenessSession(livenessConfig);
-  if (!sessionResult.ok) {
-    return upstreamFailureResponse('eGov Face Liveness', 'liveness_session', sessionResult);
-  }
-
-  const sessionBody = sessionResult.data as { token?: unknown; url?: unknown };
-  if (typeof sessionBody.token !== 'string' || sessionBody.token.length === 0) {
-    return Response.json(
-      { error: 'Face Liveness session response did not include a token' },
-      { status: 502 }
-    );
   }
 
   const profileFields =
@@ -90,17 +86,21 @@ export async function POST(request: Request) {
     last_name: stringField(profileFields, 'last_name') ?? '',
     suffix: stringField(profileFields, 'suffix'),
     birth_date: stringField(profileFields, 'birth_date') ?? '',
-    livenessToken: sessionBody.token,
   });
 
   if (!flowId) {
-    console.error('verify/start called with missing FLOW_TOKEN_SECRET env config');
+    console.error('[verify/start] missing FLOW_TOKEN_SECRET env config');
     return Response.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
+
+  const livenessPageUrl = new URL('/auth/verify/liveness-page', request.url);
+  livenessPageUrl.searchParams.set('redirect_uri', callbackUrl);
+
+  console.log('[verify/start] flow started successfully, flow_id length:', flowId.length);
 
   return Response.json({
     flow_id: flowId,
     profile: profileResult.data,
-    liveness: { token: sessionBody.token, url: sessionBody.url },
+    liveness: { url: livenessPageUrl.toString() },
   });
 }

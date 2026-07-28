@@ -1,7 +1,11 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function GET() {
-  const { data, error } = await supabase
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
+  const { data, error } = await supabaseAdmin
     .from('appointments')
     .select('*')
     .neq('status', 'cancelled')

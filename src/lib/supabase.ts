@@ -1,11 +1,14 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL ?? '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY;
 
-export const supabase: SupabaseClient | null =
-  supabaseUrl && supabaseServiceKey
-    ? createClient(supabaseUrl, supabaseServiceKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })
-    : null;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_KEY are not configured');
+}
+
+// Citizens authenticate via eGov SSO, not Supabase Auth — there is no
+// Supabase session to persist, so auth persistence/refresh is disabled.
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});

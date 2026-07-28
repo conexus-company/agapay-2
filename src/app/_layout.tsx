@@ -4,6 +4,7 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { HealthProfileSetupProvider } from '@/contexts/health-profile-setup-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,6 +27,7 @@ function RootNavigator() {
         </Stack.Protected>
         <Stack.Protected guard={status === 'signedOut'}>
           <Stack.Screen name="auth" />
+          <Stack.Screen name="health-profile-setup" options={{ headerShown: false }} />
         </Stack.Protected>
       </Stack>
     </>
@@ -37,7 +39,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-        <RootNavigator />
+        <HealthProfileSetupProvider>
+          <RootNavigator />
+        </HealthProfileSetupProvider>
       </AuthProvider>
     </ThemeProvider>
   );

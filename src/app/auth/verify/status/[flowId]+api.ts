@@ -1,4 +1,3 @@
-import { getFaceLivenessConfig, getLivenessResult, isLivenessVerified } from '@/lib/face-liveness';
 import { authenticate, getEverifyConfig, verifyIdentity, type EverifyQueryPayload } from '@/lib/everify';
 import { decodeFlowToken } from '@/lib/flow-token';
 import type { ApiResult } from '@/lib/api-result';
@@ -23,39 +22,35 @@ function upstreamFailureResponse(service: string, step: string, result: ApiResul
   return Response.json({ error: `Unable to reach ${service} during ${step}` }, { status: 502 });
 }
 
-export async function GET(_request: Request, { flowId }: Record<string, string>) {
+export async function GET(request: Request, { flowId }: Record<string, string>) {
+  console.log('[verify/status] request received');
+
   if (!flowId) {
     return Response.json({ error: 'flowId is required' }, { status: 400 });
   }
 
+  const sessionId = new URL(request.url).searchParams.get('session_id');
+  if (!sessionId) {
+    return Response.json({ error: 'session_id is required' }, { status: 400 });
+  }
+
   const flow = await decodeFlowToken(flowId);
   if (!flow) {
+    console.warn('[verify/status] flow_id failed to decode/verify');
     return Response.json({ error: 'Invalid or expired flow_id' }, { status: 400 });
   }
 
-  const livenessConfig = getFaceLivenessConfig();
-  if (!livenessConfig) {
-    console.error('verify/status called with missing Face Liveness env config');
-    return Response.json({ error: 'Server misconfiguration' }, { status: 500 });
-  }
-
-  const livenessResult = await getLivenessResult(livenessConfig, flow.livenessToken);
-  if (!livenessResult.ok) {
-    return upstreamFailureResponse('eGov Face Liveness', 'result lookup', livenessResult);
-  }
-
-  if (!isLivenessVerified(livenessResult.data)) {
-    return Response.json({ flow_id: flowId, status: 'pending_liveness', liveness: livenessResult.data });
-  }
+  console.log('[verify/status] decoded flow, session_id:', sessionId);
 
   const everifyConfig = getEverifyConfig();
   if (!everifyConfig) {
-    console.error('verify/status called with missing eVerify env config');
+    console.error('[verify/status] missing eVerify env config');
     return Response.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
   const authResult = await authenticate(everifyConfig);
   if (!authResult.ok) {
+    console.warn('[verify/status] eVerify auth failed:', authResult.kind);
     return upstreamFailureResponse('eVerify', 'auth', authResult);
   }
 
@@ -65,13 +60,15 @@ export async function GET(_request: Request, { flowId }: Record<string, string>)
     last_name: flow.last_name,
     suffix: flow.suffix,
     birth_date: flow.birth_date,
-    face_liveness_session_id: flow.livenessToken,
+    face_liveness_session_id: sessionId,
   };
 
   const queryResult = await verifyIdentity(everifyConfig, authResult.data, payload);
   if (!queryResult.ok) {
+    console.warn('[verify/status] eVerify query failed:', queryResult.kind);
     return upstreamFailureResponse('eVerify', 'query', queryResult);
   }
 
+  console.log('[verify/status] eVerify completed successfully');
   return Response.json({ flow_id: flowId, status: 'completed', everify: queryResult.data });
 }

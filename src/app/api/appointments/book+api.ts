@@ -1,6 +1,10 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: Request) {
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
 
   const referenceNumber = `AGP-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-  const { data, error: insertError } = await supabase
+  const { data, error: insertError } = await supabaseAdmin
     .from('appointments')
     .insert({
       reference_number: referenceNumber,

@@ -1,6 +1,10 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: Request) {
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   const authHeader = request.headers.get('Authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
@@ -26,7 +30,7 @@ export async function POST(request: Request) {
   const citizenHash = `stub-hash-${token.slice(0, 8)}`;
 
   if (appointmentId) {
-    const { data: appt, error: apptError } = await supabase
+    const { data: appt, error: apptError } = await supabaseAdmin
       .from('appointments')
       .select('id, status, service_type')
       .eq('id', appointmentId)
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from('queue_tickets')
     .select('id, queue_number, facility_id, service_type, status, checked_in_at')
     .eq('appointment_id', appointmentId ?? '')
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
 
   let serviceType = 'general';
   if (appointmentId) {
-    const { data: appt } = await supabase
+    const { data: appt } = await supabaseAdmin
       .from('appointments')
       .select('service_type')
       .eq('id', appointmentId)
@@ -74,7 +78,7 @@ export async function POST(request: Request) {
 
   const today = new Date().toISOString().split('T')[0];
 
-  const { count } = await supabase
+  const { count } = await supabaseAdmin
     .from('queue_tickets')
     .select('id', { count: 'exact', head: true })
     .eq('facility_id', facilityId)
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
   const nextSeq = (count ?? 0) + 1;
   const queueNumber = `${facilityId.toUpperCase()}-${String(nextSeq).padStart(3, '0')}`;
 
-  const { data: ticket, error: insertError } = await supabase
+  const { data: ticket, error: insertError } = await supabaseAdmin
     .from('queue_tickets')
     .insert({
       appointment_id: appointmentId,
@@ -103,7 +107,7 @@ export async function POST(request: Request) {
       const retrySeq = nextSeq + 1;
       const retryNumber = `${facilityId.toUpperCase()}-${String(retrySeq).padStart(3, '0')}`;
 
-      const { data: retryTicket, error: retryError } = await supabase
+      const { data: retryTicket, error: retryError } = await supabaseAdmin
         .from('queue_tickets')
         .insert({
           appointment_id: appointmentId,

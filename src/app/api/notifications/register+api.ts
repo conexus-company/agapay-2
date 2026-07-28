@@ -1,6 +1,10 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: Request) {
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   const authHeader = request.headers.get('Authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
@@ -29,7 +33,7 @@ export async function POST(request: Request) {
 
   const citizenHash = `stub-hash-${token.slice(0, 8)}`;
 
-  const { error: tokenError } = await supabase
+  const { error: tokenError } = await supabaseAdmin
     .from('device_tokens')
     .upsert(
       { citizen_hash: citizenHash, push_token: pushToken, platform },
@@ -40,7 +44,7 @@ export async function POST(request: Request) {
     return Response.json({ error: tokenError.message }, { status: 502 });
   }
 
-  await supabase
+  await supabaseAdmin
     .from('queue_notification_preferences')
     .upsert(
       { citizen_hash: citizenHash, push_enabled: true, in_app_enabled: true },

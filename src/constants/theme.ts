@@ -61,30 +61,5 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+export const BottomTabInset = Platform.select({ ios: 50, android: 80, web: 64 }) ?? 0;
 export const MaxContentWidth = 800;
-
-export const Brand = {
-  primary: '#1E3A8A',
-  primaryLight: '#2563EB',
-  background: '#F8FAFC',
-  surface: '#FFFFFF',
-  border: '#E2E6EC',
-  shadow: 'rgba(0,0,0,0.06)',
-  success: '#059669',
-  successBg: '#D1FAE5',
-  successText: '#065F46',
-  info: '#2563EB',
-  infoBg: '#DBEAFE',
-  infoText: '#1E40AF',
-  warning: '#D97706',
-  warningBg: '#FEF3C7',
-  danger: '#DC2626',
-  dangerBg: '#FEE2E2',
-  dangerText: '#991B1B',
-  muted: '#6B7280',
-  mutedBg: '#F3F4F6',
-  mutedText: '#6B7280',
-  textPrimary: '#1E293B',
-  textSecondary: '#64748B',
-} as const;

@@ -1,16 +1,20 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   const { id } = await params;
 
   if (!id) {
     return Response.json({ error: 'Appointment id is required' }, { status: 400 });
   }
 
-  const { data, error: updateError } = await supabase
+  const { data, error: updateError } = await supabaseAdmin
     .from('appointments')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id)

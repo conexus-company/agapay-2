@@ -1,8 +1,12 @@
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 const VALID_STATUSES = ['called', 'completed', 'no_show'] as const;
 
 export async function POST(request: Request) {
+  if (!supabaseAdmin) {
+    return Response.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   const advanceSecret = process.env.QUEUE_ADVANCE_SECRET;
   if (!advanceSecret) {
     return Response.json({ error: 'Feature not configured' }, { status: 403 });
@@ -35,7 +39,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from('queue_tickets')
     .select('id, status')
     .eq('id', ticketId)
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
   if (status === 'called') updatePayload.called_at = now;
   if (status === 'completed') updatePayload.completed_at = now;
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await supabaseAdmin
     .from('queue_tickets')
     .update(updatePayload)
     .eq('id', ticketId);
@@ -63,19 +67,19 @@ export async function POST(request: Request) {
     return Response.json({ error: updateError.message }, { status: 500 });
   }
 
-  const { data: ticket } = await supabase
+  const { data: ticket } = await supabaseAdmin
     .from('queue_tickets')
     .select('citizen_hash, queue_number')
     .eq('id', ticketId)
     .single();
 
   if (ticket) {
-    const { data: tokens } = await supabase
+    const { data: tokens } = await supabaseAdmin
       .from('device_tokens')
       .select('push_token')
       .eq('citizen_hash', ticket.citizen_hash);
 
-    const { data: prefs } = await supabase
+    const { data: prefs } = await supabaseAdmin
       .from('queue_notification_preferences')
       .select('push_enabled')
       .eq('citizen_hash', ticket.citizen_hash)
