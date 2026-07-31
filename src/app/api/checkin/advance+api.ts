@@ -104,6 +104,21 @@ export async function POST(request: Request) {
         // Push failure is non-fatal
       }
     }
+
+    // A-028: mirror the push into an in-app notification so the citizen sees
+    // the update on the Alerts tab even without a physical device push token.
+    // Best-effort — the advance must succeed regardless.
+    try {
+      await supabaseAdmin.from('citizen_notifications').insert({
+        citizen_hash: ticket.citizen_hash,
+        category: 'queue',
+        title: 'Queue Update',
+        body: `Your queue number ${ticket.queue_number} has been ${status === 'called' ? 'called' : status === 'completed' ? 'completed' : 'marked as no show'}.`,
+        action_route: '/queue',
+      });
+    } catch {
+      // In-app notification failure is non-fatal
+    }
   }
 
   return Response.json({ advanced: true });

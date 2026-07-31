@@ -17,6 +17,8 @@ import { useAppointments, type Appointment } from '@/hooks/use-appointments';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useQueueStatus, type QueueStatus } from '@/hooks/use-queue-status';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/contexts/auth-context';
+import { getNotificationsAuthToken } from '@/lib/notifications';
 
 const STATUS_STYLES: Record<Appointment['status'], { bg: string; text: string; label: string }> = {
   confirmed: { bg: Brand.successBg, text: Brand.successText, label: 'Confirmed' },
@@ -42,7 +44,8 @@ export default function AppointmentDetailScreen() {
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
 
-  usePushNotifications();
+  const { session } = useAuth();
+  usePushNotifications(getNotificationsAuthToken(session?.profile));
 
   const { status: queueStatus, queueNumber } = useQueueStatus({
     ticketId: activeTicketId,

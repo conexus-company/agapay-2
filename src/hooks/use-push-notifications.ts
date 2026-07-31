@@ -13,7 +13,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export function usePushNotifications() {
+export function usePushNotifications(token?: string | null) {
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [granted, setGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,10 +21,13 @@ export function usePushNotifications() {
 
   useEffect(() => {
     if (!Device.isDevice) return;
+    if (!token) return;
 
     let cancelled = false;
 
     async function register() {
+      if (registered.current) return;
+
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
@@ -45,8 +48,8 @@ export function usePushNotifications() {
       const tokenData = await Notifications.getExpoPushTokenAsync();
       if (cancelled) return;
 
-      const token = tokenData.data;
-      setPushToken(token);
+      const expoToken = tokenData.data;
+      setPushToken(expoToken);
 
       if (Platform.OS === 'android') {
         Notifications.setNotificationChannelAsync('default', {
@@ -62,8 +65,14 @@ export function usePushNotifications() {
         const platform = Platform.OS === 'ios' ? 'ios' : 'android';
         fetch('/api/notifications/register', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ push_token: token, platform }),
+          headers: {
+            'Content-Type': 'application/json',
+            // The register route derives the citizen hash from the Bearer
+            // token — without it the endpoint returns 401 and the device
+            // token is never saved, so queue/health updates never push.
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ push_token: expoToken, platform }),
         }).catch(() => {});
       }
     }
@@ -73,7 +82,7 @@ export function usePushNotifications() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [token]);
 
   const deviceError = !Device.isDevice ? 'Push notifications require a physical device' : null;
 
