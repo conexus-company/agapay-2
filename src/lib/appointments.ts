@@ -16,6 +16,87 @@ export type BookingDraft = {
   selectedTime: string;
 };
 
+export type PersistedBooking = {
+  appointmentId: string;
+  referenceNumber: string;
+  status: string;
+  scheduledAt: string;
+};
+
+// Converts the schedule-selection slot format ("2026-08-05" + "9:00 AM")
+// into the ISO-8601 timestamp the booking API expects.
+function toScheduledAtIso(isoDate: string, time12h: string): string | null {
+  const timeMatch = time12h.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!timeMatch) return null;
+
+  let hour = Number(timeMatch[1]) % 12;
+  if (timeMatch[3].toUpperCase() === 'PM') hour += 12;
+  const minute = Number(timeMatch[2]);
+
+  const [year, month, day] = isoDate.split('-').map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, hour, minute).toISOString();
+}
+
+/**
+ * Persists a confirmed booking server-side via /api/appointments/book, which
+ * creates the record and returns the real reference number + appointment id.
+ * Used by the confirmation screen so the QR pass references an appointment
+ * that actually exists in the DB.
+ */
+export async function persistBooking(payload: {
+  facilityId: string;
+  serviceType: string;
+  selectedDate: string;
+  selectedTime: string;
+}): Promise<ApiResult<PersistedBooking>> {
+  const scheduledAt = toScheduledAtIso(payload.selectedDate, payload.selectedTime);
+  if (!scheduledAt) {
+    return { ok: false, kind: 'invalid_response', message: 'Could not parse the selected time slot.' };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch('/api/appointments/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        facility_id: payload.facilityId,
+        service_type: payload.serviceType,
+        scheduled_at: scheduledAt,
+      }),
+    });
+  } catch {
+    return { ok: false, kind: 'network_error' };
+  }
+
+  const body = await parseJsonBody(response);
+
+  if (!response.ok) {
+    return { ok: false, kind: 'upstream_error', status: response.status, body };
+  }
+
+  if (!body || typeof body !== 'object') {
+    return { ok: false, kind: 'invalid_response', message: 'Booking API returned no data' };
+  }
+
+  const record = body as Record<string, unknown>;
+  if (typeof record.appointment_id !== 'string' || typeof record.reference_number !== 'string') {
+    return { ok: false, kind: 'invalid_response', message: 'Booking API returned an unexpected response' };
+  }
+
+  return {
+    ok: true,
+    data: {
+      appointmentId: record.appointment_id,
+      referenceNumber: record.reference_number,
+      status: typeof record.status === 'string' ? record.status : 'confirmed',
+      scheduledAt: typeof record.scheduled_at === 'string' ? record.scheduled_at : scheduledAt,
+    },
+  };
+}
+
 const MOCK_TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:30 AM', '1:00 PM', '2:30 PM', '4:00 PM'];
 
 function toIsoDate(date: Date): string {

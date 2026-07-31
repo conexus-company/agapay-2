@@ -274,13 +274,14 @@ export default function ScheduleSelectionScreen() {
     }
 
     router.push({
-      // The Appointment Confirmed screen is a separate, not-yet-built task
-      // (see A-018 spec) — this path is the agreed hand-off target.
+      // The Appointment Confirmed screen (A-020) renders the summary and QR
+      // pass from these hand-off params.
       pathname: '/appointments/confirmation',
       params: {
         doctorName: draft.doctorName,
         specialty: draft.specialty,
         facilityName: draft.facilityName,
+        facilityId: draft.facilityId,
         selectedDate: draft.selectedDate,
         selectedTime: draft.selectedTime,
       },
