@@ -5,6 +5,7 @@ export type QueueStatus = 'waiting' | 'called' | 'completed' | 'no_show';
 
 interface UseQueueStatusOptions {
   ticketId: string | null;
+  token?: string | null;
   onStatusChange?: (status: QueueStatus) => void;
 }
 
@@ -16,7 +17,7 @@ interface UseQueueStatusResult {
   error: string | null;
 }
 
-export function useQueueStatus({ ticketId, onStatusChange }: UseQueueStatusOptions): UseQueueStatusResult {
+export function useQueueStatus({ ticketId, token, onStatusChange }: UseQueueStatusOptions): UseQueueStatusResult {
   const [status, setStatus] = useState<QueueStatus | null>(null);
   const [queueNumber, setQueueNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,18 @@ export function useQueueStatus({ ticketId, onStatusChange }: UseQueueStatusOptio
   const previousStatus = useRef<QueueStatus | null>(null);
   const appState = useRef(AppState.currentState);
   const fetchIdRef = useRef(0);
+  const [renderedTicketId, setRenderedTicketId] = useState(ticketId);
+
+  // Reset per-ticket state when the ticket changes (render-time adjustment)
+  // so a stale terminal status from a previous ticket never bleeds into a
+  // newly checked-in ticket. Runs during render per the React docs, with the
+  // guard bailing out once the new ticket id is rendered.
+  if (renderedTicketId !== ticketId) {
+    setRenderedTicketId(ticketId);
+    setStatus(null);
+    setQueueNumber(null);
+    setError(null);
+  }
 
   const poll = useCallback(async (id: string) => {
     const currentFetchId = ++fetchIdRef.current;
@@ -31,7 +44,9 @@ export function useQueueStatus({ ticketId, onStatusChange }: UseQueueStatusOptio
     setError(null);
 
     try {
-      const res = await fetch(`/api/checkin/status/${id}`);
+      const res = await fetch(`/api/checkin/status/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (currentFetchId !== fetchIdRef.current) return;
 
       if (!res.ok) {
@@ -61,7 +76,7 @@ export function useQueueStatus({ ticketId, onStatusChange }: UseQueueStatusOptio
     }
 
     setLoading(false);
-  }, [onStatusChange]);
+  }, [onStatusChange, token]);
 
   useEffect(() => {
     if (!ticketId) return;
