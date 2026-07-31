@@ -57,4 +57,7 @@ export type Facility = {
   services?: string[];
   doctors?: Doctor[];
   hours?: FacilityHours[];
+  phone?: string;
+  email?: string;
+  website?: string;
 };

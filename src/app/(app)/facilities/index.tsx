@@ -10,6 +10,7 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 import { findNearbyFacilities } from '@/lib/facilities';
 import { getCurrentLocation } from '@/lib/geolocation';
 import type { Facility } from '@/lib/health-navigation-types';
+import { getDirectoryFacilities } from '@/lib/provider-directory';
 
 type FilterKey = 'Government' | 'Private' | 'Nearby' | 'Open Now';
 const FILTERS: FilterKey[] = ['Government', 'Private', 'Nearby', 'Open Now'];
@@ -21,18 +22,18 @@ function matchesFilter(facility: Facility, filter: FilterKey): boolean {
   return true; // Nearby — no extra predicate, list is already distance-sorted
 }
 
-function FacilityCard({ facility }: { facility: Facility }) {
+function FacilityCard({ facility, directoryMode }: { facility: Facility; directoryMode: boolean }) {
   return (
     <Pressable
       onPress={() =>
-        router.push({
-          pathname: '/facilities/[id]',
-          // No facilities backend exists yet — the detail screen is fed the
-          // tapped card's already-fetched data directly instead of
-          // re-querying Overpass by id, avoiding a second network round
-          // trip and a second location-permission prompt.
-          params: { id: facility.id, facility: JSON.stringify(facility) },
-        })
+        router.push(
+          directoryMode
+            ? { pathname: '/facilities/[id]', params: { id: facility.id } }
+            : {
+                pathname: '/facilities/[id]',
+                params: { id: facility.id, facility: JSON.stringify(facility) },
+              },
+        )
       }
       accessibilityRole="button"
       accessibilityLabel={`View details for ${facility.name}`}
@@ -50,8 +51,12 @@ function FacilityCard({ facility }: { facility: Facility }) {
           </Text>
         )}
         <View style={styles.cardMetaRow}>
-          <Ionicons name="location" size={13} color={AuthColors.danger} />
-          <Text style={styles.cardMetaText}>{facility.distanceKm.toFixed(1)} km</Text>
+          {facility.distanceKm > 0 && (
+            <>
+              <Ionicons name="location" size={13} color={AuthColors.danger} />
+              <Text style={styles.cardMetaText}>{facility.distanceKm.toFixed(1)} km</Text>
+            </>
+          )}
           {facility.rating !== undefined && (
             <>
               <Ionicons name="star" size={13} color={AuthColors.accent} style={styles.cardMetaStar} />
@@ -87,6 +92,7 @@ function FacilityCard({ facility }: { facility: Facility }) {
 export default function FindFacilitiesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterKey | null>(null);
+  const [directoryMode, setDirectoryMode] = useState(false);
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [rawFacilities, setRawFacilities] = useState<Facility[]>([]);
@@ -96,9 +102,22 @@ export default function FindFacilitiesScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadNearbyFacilities() {
+    async function loadFacilities() {
       setStatus('loading');
       setErrorMessage(null);
+
+      if (directoryMode) {
+        const directoryResult = await getDirectoryFacilities();
+        if (cancelled) return;
+        if (!directoryResult.ok) {
+          setErrorMessage('Could not load the provider directory right now. Please try again.');
+          setStatus('error');
+          return;
+        }
+        setRawFacilities(directoryResult.data);
+        setStatus('ready');
+        return;
+      }
 
       const locationResult = await getCurrentLocation();
       if (cancelled) return;
@@ -124,11 +143,11 @@ export default function FindFacilitiesScreen() {
       setStatus('ready');
     }
 
-    loadNearbyFacilities();
+    loadFacilities();
     return () => {
       cancelled = true;
     };
-  }, [attempt]);
+  }, [attempt, directoryMode]);
 
   const facilities = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -173,6 +192,25 @@ export default function FindFacilitiesScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
           style={styles.filterScroll}>
+          <Pressable
+            onPress={() => {
+              setDirectoryMode((current) => !current);
+              setSelectedFilter(null);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: directoryMode }}
+            accessibilityLabel="Toggle provider directory"
+            style={({ pressed }) => [
+              styles.filterChip,
+              directoryMode && styles.filterChipSelected,
+              styles.directoryChip,
+              pressed && styles.pressed,
+            ]}>
+            <Ionicons name="albums-outline" size={15} color={directoryMode ? AuthColors.onPrimary : AuthColors.textSecondary} />
+            <Text style={[styles.filterChipText, directoryMode && styles.filterChipTextSelected]}>
+              Provider Directory
+            </Text>
+          </Pressable>
           {FILTERS.map((filter) => {
             const selected = filter === selectedFilter;
             return (
@@ -192,7 +230,9 @@ export default function FindFacilitiesScreen() {
         {status === 'loading' ? (
           <View style={styles.centerBlock}>
             <ActivityIndicator color={AuthColors.primary} size="large" />
-            <Text style={styles.loadingText}>Finding facilities near you…</Text>
+            <Text style={styles.loadingText}>
+              {directoryMode ? 'Loading provider directory…' : 'Finding facilities near you…'}
+            </Text>
           </View>
         ) : status === 'error' ? (
           <View style={styles.centerBlock}>
@@ -205,11 +245,17 @@ export default function FindFacilitiesScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
             {facilities.length > 0 ? (
-              facilities.map((facility) => <FacilityCard key={facility.id} facility={facility} />)
+              facilities.map((facility) => (
+                <FacilityCard key={facility.id} facility={facility} directoryMode={directoryMode} />
+              ))
             ) : (
               <View style={styles.emptyBlock}>
                 <Ionicons name="search-outline" size={32} color={AuthColors.textSecondary} />
-                <Text style={styles.emptyText}>No facilities match your search nearby.</Text>
+                <Text style={styles.emptyText}>
+                  {directoryMode
+                    ? 'No facilities match your search in the directory.'
+                    : 'No facilities match your search nearby.'}
+                </Text>
               </View>
             )}
           </ScrollView>
@@ -286,6 +332,11 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.surface,
     borderWidth: 1,
     borderColor: AuthColors.border,
+  },
+  directoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   filterChipSelected: {
     backgroundColor: AuthColors.primary,

@@ -1,19 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
 import { Spacing } from '@/constants/theme';
 import type { Doctor, Facility, FacilityHours } from '@/lib/health-navigation-types';
+import { getFacilityById } from '@/lib/provider-directory';
 
-// No facilities backend exists yet — the facility is handed off from the
-// list screen as a serialized param (see facilities/index.tsx) rather than
-// re-fetched by id, since OSM/Overpass has no cheap "fetch by id" endpoint
-// and re-querying would risk showing slightly different live data than what
-// the citizen actually tapped.
 function parseFacilityParam(value: string | undefined): Facility | null {
   if (!value) return null;
   try {
@@ -114,7 +110,7 @@ function HoursTab({ hours }: { hours: FacilityHours[] }) {
   );
 }
 
-function ErrorState({ facilityId }: { facilityId: string | undefined }) {
+function ErrorState({ facilityId, message, onRetry }: { facilityId: string | undefined; message: string; onRetry?: () => void }) {
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.errorSafeArea}>
@@ -123,20 +119,82 @@ function ErrorState({ facilityId }: { facilityId: string | undefined }) {
             <Ionicons name="alert-circle-outline" size={32} color={AuthColors.danger} />
           </View>
           <Text style={styles.errorTitle}>Facility not found</Text>
-          <Text style={styles.errorSubtitle}>
-            {facilityId
-              ? "We couldn't find details for this facility. It may no longer be available."
-              : 'No facility was specified.'}
-          </Text>
+          <Text style={styles.errorSubtitle}>{message}</Text>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => (onRetry ? onRetry() : router.back())}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={onRetry ? 'Retry loading this facility' : 'Go back'}
             style={({ pressed }) => [styles.errorButton, pressed && styles.pressed]}>
-            <Text style={styles.errorButtonText}>Go back</Text>
+            <Text style={styles.errorButtonText}>{onRetry ? 'Try again' : 'Go back'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
+    </View>
+  );
+}
+
+function LoadingState() {
+  return (
+    <View style={styles.screen}>
+      <SafeAreaView style={styles.errorSafeArea}>
+        <View style={styles.errorBlock}>
+          <ActivityIndicator color={AuthColors.primary} size="large" />
+          <Text style={styles.errorSubtitle}>Loading facility details…</Text>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function normalizeWebsite(value: string): string {
+  return value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`;
+}
+
+function ContactSection({ facility }: { facility: Facility }) {
+  const phone = facility.phone;
+  const email = facility.email;
+  const website = facility.website;
+  if (!phone && !email && !website) return null;
+
+  return (
+    <View style={styles.contactCard}>
+      <Text style={styles.contactTitle}>Contact</Text>
+      {phone && (
+        <Pressable
+          onPress={() => Linking.openURL(`tel:${phone}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${phone}`}
+          style={({ pressed }) => [styles.contactRow, pressed && styles.pressed]}>
+          <View style={styles.contactIconCircle}>
+            <Ionicons name="call-outline" size={16} color={AuthColors.primary} />
+          </View>
+          <Text style={styles.contactText}>{phone}</Text>
+        </Pressable>
+      )}
+      {email && (
+        <Pressable
+          onPress={() => Linking.openURL(`mailto:${email}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Email ${email}`}
+          style={({ pressed }) => [styles.contactRow, pressed && styles.pressed]}>
+          <View style={styles.contactIconCircle}>
+            <Ionicons name="mail-outline" size={16} color={AuthColors.primary} />
+          </View>
+          <Text style={styles.contactText}>{email}</Text>
+        </Pressable>
+      )}
+      {website && (
+        <Pressable
+          onPress={() => Linking.openURL(normalizeWebsite(website))}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${website}`}
+          style={({ pressed }) => [styles.contactRow, pressed && styles.pressed]}>
+          <View style={styles.contactIconCircle}>
+            <Ionicons name="globe-outline" size={16} color={AuthColors.primary} />
+          </View>
+          <Text style={styles.contactText}>{website}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -181,10 +239,60 @@ export default function FacilityDetailScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('Services');
   const insets = useSafeAreaInsets();
 
-  const facility = parseFacilityParam(facilityParam);
+  const passedFacility = useMemo(() => parseFacilityParam(facilityParam), [facilityParam]);
 
-  if (!facility) {
-    return <ErrorState facilityId={id} />;
+  const [status, setStatus] = useState<'ready' | 'loading' | 'error'>(passedFacility ? 'ready' : 'loading');
+  const [facility, setFacility] = useState<Facility | null>(passedFacility);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (passedFacility) return;
+    let cancelled = false;
+
+    async function loadFromDirectory() {
+      setStatus('loading');
+      setErrorMessage(null);
+
+      const result = await getFacilityById(id);
+      if (cancelled) return;
+      if (!result.ok) {
+        setErrorMessage(
+          result.kind === 'invalid_response'
+            ? result.message
+            : 'Could not load this facility right now. Please try again.',
+        );
+        setStatus('error');
+        return;
+      }
+
+      setFacility(result.data);
+      setStatus('ready');
+    }
+
+    loadFromDirectory();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, passedFacility, attempt]);
+
+  if (status === 'loading') {
+    return <LoadingState />;
+  }
+
+  if (status === 'error' || !facility) {
+    return (
+      <ErrorState
+        facilityId={id}
+        message={
+          errorMessage ??
+          (id
+            ? "We couldn't find details for this facility. It may no longer be available."
+            : 'No facility was specified.')
+        }
+        onRetry={id ? () => setAttempt((n) => n + 1) : undefined}
+      />
+    );
   }
 
   const statusStyle =
@@ -212,18 +320,26 @@ export default function FacilityDetailScreen() {
           <Text style={styles.name} numberOfLines={2}>
             {facility.name}
           </Text>
-          {facility.isVerified && (
-            <View style={styles.verifiedPill}>
-              <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          )}
+          <View style={styles.badgeColumn}>
+            {facility.type && (
+              <View style={styles.typePill}>
+                <Text style={styles.typePillText}>{facility.type}</Text>
+              </View>
+            )}
+            {facility.isVerified && (
+              <View style={styles.verifiedPill}>
+                <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.metaRow}>
           <Ionicons name="location" size={14} color={AuthColors.danger} />
           <Text style={styles.metaText}>
-            {facility.address ?? 'Address unavailable'} · {facility.distanceKm.toFixed(1)} km
+            {facility.address ?? 'Address unavailable'}
+            {facility.distanceKm > 0 ? ` · ${facility.distanceKm.toFixed(1)} km` : ''}
           </Text>
         </View>
 
@@ -250,6 +366,8 @@ export default function FacilityDetailScreen() {
           style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}>
           <Text style={styles.mapButtonText}>🗺️ View on Map</Text>
         </Pressable>
+
+        <ContactSection facility={facility} />
 
         <View style={styles.tabBar}>
           {TABS.map((tab) => {
@@ -326,11 +444,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.two,
   },
+  badgeColumn: {
+    alignItems: 'flex-end',
+    gap: Spacing.one,
+  },
   name: {
     flex: 1,
     fontSize: 22,
     fontWeight: '700',
     color: AuthColors.text,
+  },
+  typePill: {
+    backgroundColor: '#EEF2F7',
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+  },
+  typePillText: {
+    color: AuthColors.primary,
+    fontSize: 11,
+    fontWeight: '700',
   },
   verifiedPill: {
     flexDirection: 'row',
@@ -339,7 +472,7 @@ const styles = StyleSheet.create({
     backgroundColor: AuthColors.success,
     borderRadius: 999,
     paddingHorizontal: Spacing.two,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   verifiedText: {
     color: '#FFFFFF',
@@ -382,6 +515,41 @@ const styles = StyleSheet.create({
     color: AuthColors.primary,
     fontSize: 15,
     fontWeight: '700',
+  },
+  contactCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: AuthColors.border,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    gap: 0,
+  },
+  contactTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: AuthColors.text,
+    paddingVertical: Spacing.two,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    minHeight: 44,
+  },
+  contactIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactText: {
+    flex: 1,
+    fontSize: 14,
+    color: AuthColors.text,
   },
   tabBar: {
     flexDirection: 'row',

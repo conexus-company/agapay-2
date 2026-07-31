@@ -61,5 +61,31 @@ export const Spacing = {
   six: 64,
 } as const;
 
+/**
+ * Brand design tokens used across the AGAPAY screens (discovery, booking,
+ * queue). Values are aligned with the AuthColors palette so light-mode UI
+ * stays visually consistent.
+ */
+export const Brand = {
+  background: '#F5F7FA',
+  surface: '#FFFFFF',
+  border: '#E2E6EC',
+  primary: '#3764A7',
+  textPrimary: '#111827',
+  textSecondary: '#6B7280',
+  muted: '#9CA3AF',
+  mutedBg: '#EEF2F7',
+  mutedText: '#6B7280',
+  danger: '#B5252A',
+  dangerBg: '#F6E5E5',
+  dangerText: '#B5252A',
+  warning: '#B45309',
+  warningBg: '#FEF3C7',
+  infoBg: '#DBEAFE',
+  infoText: '#1D4ED8',
+  successBg: '#D1FAE5',
+  successText: '#047857',
+} as const;
+
 export const BottomTabInset = Platform.select({ ios: 50, android: 80, web: 64 }) ?? 0;
 export const MaxContentWidth = 800;

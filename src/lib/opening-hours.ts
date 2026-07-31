@@ -107,6 +107,20 @@ export function expandOpeningHoursToWeek(value: string): WeekHours[] | null {
   });
 }
 
+export function evaluateStructuredHours(hours: WeekHours[], now: Date = new Date()): OpenNowResult {
+  if (!hours || hours.length === 0) return 'unknown';
+  const today = WEEK_DAY_NAMES[now.getDay() === 0 ? 6 : now.getDay() - 1];
+  const entry = hours.find((h) => h.day === today);
+  if (!entry) return 'unknown';
+  const openMatch = entry.open.match(/^(\d{2}):(\d{2})$/);
+  const closeMatch = entry.close.match(/^(\d{2}):(\d{2})$/);
+  if (!openMatch || !closeMatch) return 'closed';
+  const openMin = Number(openMatch[1]) * 60 + Number(openMatch[2]);
+  const closeMin = Number(closeMatch[1]) * 60 + Number(closeMatch[2]);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return nowMin >= openMin && nowMin < closeMin ? 'open' : 'closed';
+}
+
 export function evaluateOpeningHours(value: string, now: Date = new Date()): OpenNowResult {
   const trimmed = value.trim();
   if (trimmed.length === 0) return 'unknown';
