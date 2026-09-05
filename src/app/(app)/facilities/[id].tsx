@@ -164,6 +164,7 @@ function BookAppointmentBar({ facility }: { facility: Facility }) {
               doctor: JSON.stringify(resolveBookingDoctor(facility)),
               facilityId: facility.id,
               facilityName: facility.name,
+              facilityHours: JSON.stringify(facility.hours ?? []),
             },
           })
         }

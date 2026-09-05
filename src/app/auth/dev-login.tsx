@@ -22,6 +22,17 @@ type RunState =
  * WebBrowser SSO redirect. Face Liveness + eVerify are temporarily
  * disconnected here too, matching the real login screen.
  */
+// Fixture profile shaped like resolveFullName/resolveMobileNumber
+// (src/lib/health-profile.ts) expect — a mobile_number is required so
+// confirmBooking's SMS step has something to send to.
+const MOCK_PROFILE = {
+  first_name: 'Juan',
+  middle_name: 'Dela',
+  last_name: 'Cruz',
+  birth_date: '1990-01-01',
+  mobile_number: '+639171234567',
+};
+
 export default function DevLoginScreen() {
   const { beginSetup } = useHealthProfileSetup();
   const [code, setCode] = useState('');
@@ -32,6 +43,11 @@ export default function DevLoginScreen() {
   if (!DEV_TOOLS_ENABLED) {
     return null;
   }
+
+  const skipToMockProfile = () => {
+    beginSetup({ profile: MOCK_PROFILE, everify: null });
+    router.push('/health-profile-setup');
+  };
 
   const start = async () => {
     const trimmed = code.trim();
@@ -63,6 +79,15 @@ export default function DevLoginScreen() {
             Paste a sandbox exchange_code from the eGov test portal to run the SSO exchange. This screen is
             excluded from production builds.
           </Text>
+
+          <Pressable
+            onPress={skipToMockProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Skip sign-in with a mock profile"
+            style={[styles.button, styles.skipButton]}
+          >
+            <Text style={styles.buttonText}>Skip sign-in (mock profile)</Text>
+          </Pressable>
 
           <TextInput
             value={code}
@@ -171,6 +196,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   useButton: { marginTop: 0 },
+  skipButton: { backgroundColor: AuthColors.success },
   buttonText: { color: AuthColors.onPrimary, fontSize: 15, fontWeight: "600" },
   error: { color: AuthColors.danger, fontSize: 13 },
   resultBlock: {

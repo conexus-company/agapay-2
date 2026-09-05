@@ -107,6 +107,21 @@ export function expandOpeningHoursToWeek(value: string): WeekHours[] | null {
   });
 }
 
+/**
+ * Maps an ISO `YYYY-MM-DD` date to its weekday name (`Monday`..`Sunday`),
+ * matching the day labels `expandOpeningHoursToWeek` / `FacilityHours.day`
+ * use. Computed via `Date.UTC` (not a local `Date` constructor) so the
+ * result is independent of the caller's timezone — the client and the
+ * server must agree on the same weekday for the same ISO date string.
+ */
+export function isoDateToWeekdayName(isoDate: string): string | null {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const utcDay = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))).getUTCDay();
+  return WEEK_DAY_NAMES[(utcDay + 6) % 7];
+}
+
 export function evaluateOpeningHours(value: string, now: Date = new Date()): OpenNowResult {
   const trimmed = value.trim();
   if (trimmed.length === 0) return 'unknown';
