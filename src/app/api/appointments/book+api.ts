@@ -1,4 +1,5 @@
 import { BOOKING_COMMITMENT_AMOUNT_PHP, BOOKING_HOLD_WINDOW_MINUTES } from '@/lib/appointments';
+import { resolveFullName, resolveMobileNumber } from '@/lib/health-profile';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 const UNIQUE_VIOLATION = '23505';
@@ -27,6 +28,14 @@ export async function POST(request: Request) {
   const doctorId = typeof body.doctor_id === 'string' && body.doctor_id.trim() ? body.doctor_id.trim() : null;
   const serviceType = typeof body.service_type === 'string' ? body.service_type.trim() : '';
   const scheduledAt = typeof body.scheduled_at === 'string' ? body.scheduled_at.trim() : '';
+  const facilityName = typeof body.facility_name === 'string' && body.facility_name.trim() ? body.facility_name.trim() : null;
+
+  // Resolved from the citizen profile the same way confirm+api.ts does —
+  // persisted here (rather than only sent to confirm+api.ts) because
+  // send-reminders+api.ts runs with no live session/profile to resolve
+  // these from later; citizen_hash alone can't be reversed to a phone number.
+  const mobileNumber = resolveMobileNumber(body.profile);
+  const citizenFullName = resolveFullName(body.profile);
 
   if (!facilityId || !serviceType || !scheduledAt) {
     return Response.json(
@@ -62,6 +71,9 @@ export async function POST(request: Request) {
       scheduled_at: scheduledAt,
       status: 'pending_commitment',
       consented_fields: body.consent_id ? { consent_id: body.consent_id } : {},
+      facility_name: facilityName,
+      mobile_number: mobileNumber,
+      citizen_full_name: citizenFullName,
     })
     .select('id, reference_number, scheduled_at')
     .single();

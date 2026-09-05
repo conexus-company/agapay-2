@@ -42,6 +42,15 @@ export const BOOKING_COMMITMENT_AMOUNT_PHP = 50;
 // replaces the instant-capture stub.
 export const BOOKING_HOLD_WINDOW_MINUTES = 10;
 
+// Lead times before scheduled_at at which send-reminders+api.ts fires an
+// appointment reminder. Each is independently tracked (its own
+// reminder_*_sent_at column) so a cron re-run, or one lead time already
+// having fired, never blocks or double-sends the other.
+export const REMINDER_LEAD_TIMES = [
+  { hours: 24, sentAtColumn: 'reminder_24h_sent_at', label: 'tomorrow' },
+  { hours: 1, sentAtColumn: 'reminder_1h_sent_at', label: 'in 1 hour' },
+] as const;
+
 function toIsoDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -319,8 +328,13 @@ export type BookedAppointment = {
  * the same way every other placeholder-auth route in this codebase expects
  * one (see resolveSsoSubjectId in lib/health-profile.ts, used by callers as
  * the stable per-citizen id).
+ *
+ * `profile` and `facility_name` are sent along so book+api.ts can persist a
+ * mobile number/full name/facility name onto the row — the appointment
+ * reminder job (send-reminders+api.ts) has no live session to resolve these
+ * from later.
  */
-export async function bookAppointment(draft: BookingDraft, citizenToken: string): Promise<ApiResult<BookedAppointment>> {
+export async function bookAppointment(draft: BookingDraft, citizenToken: string, profile: unknown): Promise<ApiResult<BookedAppointment>> {
   const scheduledAt = combineDateAndSlot(draft.selectedDate, draft.selectedTime);
   if (!scheduledAt) {
     return { ok: false, kind: 'invalid_response', message: 'Could not resolve the selected date and time.' };
@@ -336,6 +350,8 @@ export async function bookAppointment(draft: BookingDraft, citizenToken: string)
         doctor_id: draft.doctorId,
         service_type: draft.specialty,
         scheduled_at: scheduledAt,
+        facility_name: draft.facilityName,
+        profile,
       }),
     });
   } catch {
