@@ -1,14 +1,15 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RetryErrorCard } from '@/components/health-profile/retry-error-card';
 import { AuthColors } from '@/constants/auth-theme';
+import { DEV_TOOLS_ENABLED } from '@/constants/dev-tools';
 import { useAuth } from '@/contexts/auth-context';
 import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
-import { createOrGetHealthProfile } from '@/lib/health-profile';
+import { createOrGetHealthProfile, resolveFullName } from '@/lib/health-profile';
 import { saveHealthProfile } from '@/lib/health-profile-storage';
 import type { ApiResult } from '@/lib/api-result';
 
@@ -67,6 +68,22 @@ export default function HealthProfileSetupScreen() {
     setAttempt((n) => n + 1);
   }, []);
 
+  // Dev-only escape hatch: generate-health-id is a live Supabase edge
+  // function, unreachable in a plain local/offline dev setup — this skips
+  // it with a locally-fabricated HealthProfile so the rest of the app
+  // (which only needs *a* health_id, not a real one) stays testable.
+  const skipWithMockProfile = useCallback(async () => {
+    if (!pendingSession) return;
+    await saveHealthProfile({
+      health_id: 'DEV-0000-0000',
+      qr_payload: 'DEV-0000-0000',
+      verification_level: 'mock',
+      full_name: resolveFullName(pendingSession.profile),
+    });
+    clearPendingSession();
+    await signIn(pendingSession);
+  }, [pendingSession, signIn, clearPendingSession]);
+
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea}>
@@ -85,6 +102,15 @@ export default function HealthProfileSetupScreen() {
                 onRetry={retry}
                 retryAccessibilityLabel="Retry setting up your AGAPAY profile"
               />
+              {DEV_TOOLS_ENABLED && (
+                <Pressable
+                  onPress={skipWithMockProfile}
+                  accessibilityRole="button"
+                  accessibilityLabel="Skip profile setup with a mock health ID"
+                  style={styles.devSkip}>
+                  <Text style={styles.devSkipText}>Developer: skip with mock health ID</Text>
+                </Pressable>
+              )}
             </Animated.View>
           )}
         </View>
@@ -99,5 +125,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   statusBlock: { alignItems: 'center', gap: 16 },
   statusText: { color: AuthColors.textSecondary, fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  errorWrapper: { width: '100%', alignItems: 'center' },
+  errorWrapper: { width: '100%', alignItems: 'center', gap: 12 },
+  devSkip: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  devSkipText: { color: AuthColors.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
 });

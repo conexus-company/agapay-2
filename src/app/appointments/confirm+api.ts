@@ -1,6 +1,8 @@
+import { validateAppointmentAgainstHours } from '@/lib/appointments';
 import { getEmessageConfig, sendSms } from '@/lib/emessage';
 import { resolveFullName, resolveMobileNumber } from '@/lib/health-profile';
 import type { ApiResult } from '@/lib/api-result';
+import type { FacilityHours } from '@/lib/health-navigation-types';
 
 /**
  * Sends the appointment-confirmed SMS via eMessage. There's no Appointment
@@ -34,6 +36,28 @@ function stringField(body: Record<string, unknown>, field: string): string | nul
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+// Untrusted request body — only accept it as facility hours if it's
+// actually shaped like FacilityHours[]; anything else is treated the same
+// as "no hours data" (validateAppointmentAgainstHours already no-ops then).
+function parseFacilityHours(value: unknown): FacilityHours[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entries: FacilityHours[] = [];
+  for (const item of value) {
+    if (
+      item &&
+      typeof item === 'object' &&
+      typeof (item as Record<string, unknown>).day === 'string' &&
+      typeof (item as Record<string, unknown>).open === 'string' &&
+      typeof (item as Record<string, unknown>).close === 'string'
+    ) {
+      entries.push(item as FacilityHours);
+    } else {
+      return undefined;
+    }
+  }
+  return entries;
+}
+
 export async function POST(request: Request) {
   console.log('[appointments/confirm] request received');
 
@@ -48,13 +72,23 @@ export async function POST(request: Request) {
 
   const facilityName = stringField(body, 'facility_name');
   const appointmentDate = stringField(body, 'appointment_date');
+  const appointmentDateIso = stringField(body, 'appointment_date_iso');
   const appointmentTime = stringField(body, 'appointment_time');
 
-  if (!facilityName || !appointmentDate || !appointmentTime) {
+  if (!facilityName || !appointmentDate || !appointmentDateIso || !appointmentTime) {
     return Response.json(
-      { error: 'facility_name, appointment_date, and appointment_time are required' },
+      { error: 'facility_name, appointment_date, appointment_date_iso, and appointment_time are required' },
       { status: 400 }
     );
+  }
+
+  // Authoritative check — the client's calendar UI blocking closed
+  // days/out-of-hours slots is a UX nicety, not the source of truth, since
+  // a client could bypass it and call this endpoint directly.
+  const facilityHours = parseFacilityHours(body.facility_hours);
+  const hoursCheck = validateAppointmentAgainstHours(facilityHours, appointmentDateIso, appointmentTime);
+  if (!hoursCheck.ok) {
+    return Response.json({ error: hoursCheck.reason }, { status: 422 });
   }
 
   const profile = body.profile;

@@ -15,7 +15,7 @@ import {
   type AvailableSchedule,
   type BookingDraft,
 } from '@/lib/appointments';
-import type { Doctor } from '@/lib/health-navigation-types';
+import type { Doctor, FacilityHours } from '@/lib/health-navigation-types';
 
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const MONTH_LOADING_DELAY_MS = 400;
@@ -30,6 +30,17 @@ function parseDoctorParam(value: string | undefined): Doctor | null {
     return null;
   } catch {
     return null;
+  }
+}
+
+function parseFacilityHoursParam(value: string | undefined): FacilityHours[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length === 0) return undefined;
+    return parsed as FacilityHours[];
+  } catch {
+    return undefined;
   }
 }
 
@@ -115,19 +126,24 @@ function CalendarStrip({
           const dayNumber = Number(entry.date.slice(-2));
           const isToday = entry.date === today;
           const isSelected = entry.date === selectedDate;
-          const disabled = !entry.isAvailable;
+          const isPast = entry.date < today;
+          const blocked = !entry.isAvailable;
+          // Past dates are truly inert (no reason needed — it's obvious).
+          // Hours-blocked dates (closed day) stay pressable so tapping can
+          // surface the specific reason instead of silently doing nothing.
+          const nativeDisabled = blocked && isPast;
 
           return (
             <Pressable
               key={entry.date}
-              disabled={disabled}
+              disabled={nativeDisabled}
               onPress={() => onSelectDate(entry.date)}
               accessibilityRole="button"
               accessibilityLabel={`Select ${entry.date}`}
-              accessibilityState={{ selected: isSelected, disabled }}
+              accessibilityState={{ selected: isSelected, disabled: blocked }}
               style={styles.dateCell}>
               <View style={[styles.dateCircle, isSelected && styles.dateCircleSelected, isToday && !isSelected && styles.dateCircleToday]}>
-                <Text style={[styles.dateText, disabled && styles.dateTextDisabled, isSelected && styles.dateTextSelected]}>
+                <Text style={[styles.dateText, blocked && styles.dateTextDisabled, isSelected && styles.dateTextSelected]}>
                   {dayNumber}
                 </Text>
               </View>
@@ -163,7 +179,6 @@ function TimeSlotGrid({
         return (
           <Pressable
             key={slot.time}
-            disabled={!slot.isAvailable}
             onPress={() => onSelectTime(slot.time)}
             accessibilityRole="button"
             accessibilityLabel={`Select ${slot.time}`}
@@ -180,21 +195,25 @@ function TimeSlotGrid({
 }
 
 export default function ScheduleSelectionScreen() {
-  const { doctor: doctorParam, facilityId, facilityName } = useLocalSearchParams<{
+  const { doctor: doctorParam, facilityId, facilityName, facilityHours: facilityHoursParam } = useLocalSearchParams<{
     doctor?: string;
     facilityId?: string;
     facilityName?: string;
+    facilityHours?: string;
   }>();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
 
   const doctor = parseDoctorParam(doctorParam);
+  const facilityHours = useMemo(() => parseFacilityHoursParam(facilityHoursParam), [facilityHoursParam]);
 
   const [loading, setLoading] = useState(true);
   const [schedule, setSchedule] = useState<AvailableSchedule | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [dateBlockedMessage, setDateBlockedMessage] = useState<string | null>(null);
+  const [timeBlockedMessage, setTimeBlockedMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
@@ -211,7 +230,7 @@ export default function ScheduleSelectionScreen() {
       setLoading(true);
       return setTimeout(() => {
         if (cancelled) return;
-        const nextSchedule = getMockAvailableSchedule(doctorId);
+        const nextSchedule = getMockAvailableSchedule(doctorId, facilityHours);
         setSchedule(nextSchedule);
         setSelectedDate(getDefaultSelectedDate(nextSchedule));
         setLoading(false);
@@ -225,9 +244,10 @@ export default function ScheduleSelectionScreen() {
       clearTimeout(timer);
     };
     // doctor is re-parsed fresh from route params every render, so depending
-    // on the object itself (rather than its stable id) would refetch forever.
+    // on the object itself (rather than its stable id) would refetch forever;
+    // facilityHours is memoized on its raw param string for the same reason.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doctor?.id]);
+  }, [doctor?.id, facilityHours]);
 
   if (!doctor || !facilityId || !facilityName) {
     return <ErrorState message="We couldn't find the doctor or facility for this booking. Please go back and try again." />;
@@ -237,13 +257,26 @@ export default function ScheduleSelectionScreen() {
   const canConfirm = Boolean(selectedDate && selectedTime) && !confirming;
 
   const handleSelectDate = (date: string) => {
+    const entry = schedule?.dates.find((d) => d.date === date);
+    if (entry && !entry.isAvailable) {
+      setDateBlockedMessage(entry.reason ?? null);
+      return;
+    }
     setSelectedDate(date);
     setSelectedTime(null);
+    setDateBlockedMessage(null);
+    setTimeBlockedMessage(null);
     setConfirmError(null);
   };
 
   const handleSelectTime = (time: string) => {
+    const entry = schedule?.timeSlots.find((slot) => slot.date === selectedDate && slot.time === time);
+    if (entry && !entry.isAvailable) {
+      setTimeBlockedMessage(entry.reason ?? null);
+      return;
+    }
     setSelectedTime(time);
+    setTimeBlockedMessage(null);
     setConfirmError(null);
   };
 
@@ -258,6 +291,7 @@ export default function ScheduleSelectionScreen() {
       facilityName,
       selectedDate,
       selectedTime,
+      facilityHours,
     };
 
     setConfirming(true);
@@ -268,7 +302,13 @@ export default function ScheduleSelectionScreen() {
     setConfirming(false);
 
     if (!result.ok) {
-      setConfirmError("We couldn't confirm your appointment. Please try again.");
+      const upstreamMessage =
+        result.kind === 'upstream_error' && result.status === 422 && result.body && typeof result.body === 'object'
+          ? (result.body as Record<string, unknown>).error
+          : null;
+      setConfirmError(
+        typeof upstreamMessage === 'string' ? upstreamMessage : "We couldn't confirm your appointment. Please try again."
+      );
       scrollRef.current?.scrollToEnd({ animated: true });
       return;
     }
@@ -314,8 +354,20 @@ export default function ScheduleSelectionScreen() {
           <>
             <CalendarStrip schedule={schedule} selectedDate={selectedDate} today={today} onSelectDate={handleSelectDate} />
 
+            {dateBlockedMessage && (
+              <View style={styles.hintBanner} accessibilityRole="alert">
+                <Text style={styles.hintBannerText}>{dateBlockedMessage}</Text>
+              </View>
+            )}
+
             <Text style={styles.sectionLabel}>Available Times</Text>
             <TimeSlotGrid slots={timeSlotsForDate} selectedTime={selectedTime} onSelectTime={handleSelectTime} />
+
+            {timeBlockedMessage && (
+              <View style={styles.hintBanner} accessibilityRole="alert">
+                <Text style={styles.hintBannerText}>{timeBlockedMessage}</Text>
+              </View>
+            )}
 
             <View style={styles.summaryCard}>
               <Text style={styles.summaryHeader}>APPOINTMENT SUMMARY</Text>
@@ -542,6 +594,19 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     color: AuthColors.danger,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  hintBanner: {
+    backgroundColor: '#FFF8E1',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: AuthColors.accent,
+    padding: Spacing.three,
+  },
+  hintBannerText: {
+    color: AuthColors.text,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
