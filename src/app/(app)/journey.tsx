@@ -1,35 +1,52 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, type AppStateStatus, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
 import { Spacing } from '@/constants/theme';
 import { TimelineEntry } from '@/components/journey/timeline-entry';
-import type { HealthProfile } from '@/lib/health-profile';
+import { useAuth } from '@/contexts/auth-context';
+import { resolveSsoSubjectId, type HealthProfile } from '@/lib/health-profile';
 import { loadHealthProfile } from '@/lib/health-profile-storage';
-import { buildJourneyTimeline } from '@/lib/journey';
+import { buildJourneyTimeline, type JourneyEvent } from '@/lib/journey';
+
+// How often the timeline re-fetches while the screen is focused and the app
+// is foregrounded — same interval as use-queue-status.ts's polling.
+const REFRESH_INTERVAL_MS = 20_000;
 
 export default function JourneyScreen() {
-  const [healthProfile, setHealthProfile] = useState<HealthProfile | null>(null);
+  const { session } = useAuth();
+  const [events, setEvents] = useState<JourneyEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const healthProfileRef = useRef<HealthProfile | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refresh = useCallback(async () => {
+    if (!healthProfileRef.current) {
+      healthProfileRef.current = await loadHealthProfile();
+    }
+    const citizenToken = session?.profile ? resolveSsoSubjectId(session.profile) : null;
+    const timeline = await buildJourneyTimeline(healthProfileRef.current, citizenToken);
+    setEvents(timeline);
+    setIsLoading(false);
+  }, [session]);
 
-    loadHealthProfile().then((stored) => {
-      if (cancelled) return;
-      setHealthProfile(stored);
-      setIsLoading(false);
-    });
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
+      const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
+        if (next === 'active') refresh();
+      });
 
-  const events = useMemo(() => buildJourneyTimeline(healthProfile), [healthProfile]);
+      return () => {
+        clearInterval(interval);
+        appStateSub.remove();
+      };
+    }, [refresh]),
+  );
 
   return (
     <View style={styles.screen}>

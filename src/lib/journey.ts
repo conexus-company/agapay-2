@@ -26,42 +26,105 @@ export function buildIdentityEvent(profile: HealthProfile): JourneyEvent {
   };
 }
 
+type AppointmentRow = {
+  id: string;
+  status: string;
+  scheduled_at: string;
+  service_type: string;
+  facility_name: string | null;
+};
+
 /**
- * MOCK DATA — placeholder events pending the real Appointment, Digital
- * Check-in/Queue, and Notifications modules. Replace each block with a live
- * fetch once those features exist; nothing else about the timeline needs to
- * change since buildJourneyTimeline() just merges whatever arrives here.
+ * Fetches this citizen's appointments from api/appointments/mine+api.ts,
+ * which is scoped to the caller's citizen_hash (fixed in the
+ * booking-commitment/digital-queue pass — see mine+api.ts). Falls back to
+ * an empty list on any failure rather than showing fake data.
  */
-const MOCK_APPOINTMENT_EVENTS: JourneyEvent[] = [
-  {
-    id: 'appt-1',
-    kind: 'appointment',
-    title: 'Appointment Booked',
-    subtitle: 'General Consultation · Quezon City Health Center',
-    timestamp: '2026-07-31T09:00:00+08:00',
-    status: 'upcoming',
-  },
-  {
-    id: 'appt-2',
-    kind: 'appointment',
-    title: 'Appointment Completed',
-    subtitle: 'Annual Check-up · Manila District Hospital',
-    timestamp: '2026-07-14T10:30:00+08:00',
-    status: 'completed',
-  },
-];
+async function fetchAppointmentEvents(citizenToken: string): Promise<JourneyEvent[]> {
+  try {
+    const res = await fetch('/api/appointments/mine', {
+      headers: { Authorization: `Bearer ${citizenToken}` },
+    });
+    if (!res.ok) return [];
 
-const MOCK_CHECKIN_EVENTS: JourneyEvent[] = [
-  {
-    id: 'checkin-1',
+    const body = (await res.json()) as { appointments?: AppointmentRow[] };
+    return (body.appointments ?? []).map(mapAppointmentEvent);
+  } catch {
+    return [];
+  }
+}
+
+function mapAppointmentEvent(row: AppointmentRow): JourneyEvent {
+  const isFuture = new Date(row.scheduled_at).getTime() > Date.now();
+  const status: JourneyEventStatus = row.status === 'completed' || row.status === 'no_show' || !isFuture ? 'completed' : 'upcoming';
+
+  const title = row.status === 'no_show' ? 'Appointment Missed' : status === 'upcoming' ? 'Appointment Booked' : 'Appointment Completed';
+  const subtitle = row.facility_name ? `${row.service_type} · ${row.facility_name}` : row.service_type;
+
+  return {
+    id: `appt-${row.id}`,
+    kind: 'appointment',
+    title,
+    subtitle,
+    timestamp: row.scheduled_at,
+    status,
+  };
+}
+
+type CheckinTicketRow = {
+  ticket_id: string;
+  queue_number: string;
+  facility_id: string;
+  service_type: string;
+  status: 'waiting' | 'called' | 'completed' | 'no_show';
+  checked_in_at: string;
+  called_at: string | null;
+  completed_at: string | null;
+};
+
+/**
+ * Fetches this citizen's queue-ticket history from
+ * api/checkin/my-tickets+api.ts (new — status/[ticketId]+api.ts only looks
+ * up one ticket by id, and mine+api.ts only returns the current active
+ * ticket, neither of which gives full history for the timeline).
+ */
+async function fetchCheckinEvents(citizenToken: string): Promise<JourneyEvent[]> {
+  try {
+    const res = await fetch('/api/checkin/my-tickets', {
+      headers: { Authorization: `Bearer ${citizenToken}` },
+    });
+    if (!res.ok) return [];
+
+    const body = (await res.json()) as { tickets?: CheckinTicketRow[] };
+    return (body.tickets ?? []).map(mapCheckinEvent);
+  } catch {
+    return [];
+  }
+}
+
+function mapCheckinEvent(row: CheckinTicketRow): JourneyEvent {
+  const status: JourneyEventStatus = row.status === 'waiting' || row.status === 'called' ? 'active' : 'completed';
+  const title = row.status === 'no_show' ? 'Missed Queue Turn' : row.status === 'completed' ? 'Check-in Completed' : 'Checked In';
+  const timestamp = row.completed_at ?? row.called_at ?? row.checked_in_at;
+
+  return {
+    id: `checkin-${row.ticket_id}`,
     kind: 'checkin',
-    title: 'Checked In',
-    subtitle: 'Queue #A-042 · Manila District Hospital',
-    timestamp: '2026-07-14T10:15:00+08:00',
-    status: 'completed',
-  },
-];
+    title,
+    subtitle: `Queue #${row.queue_number} · ${row.service_type}`,
+    timestamp,
+    status,
+  };
+}
 
+/**
+ * MOCK DATA — no lab-results/health-updates module exists anywhere in this
+ * codebase, and it isn't one of the 8 AGAPAY MVP modules (Auth, Digital
+ * Health Identity, Healthcare Navigation, Healthcare Discovery, Appointment,
+ * Digital Check-in & Queue, Notifications, Healthcare Journey). Left mocked
+ * and out of scope for A-030 — do not wire this to a real source without a
+ * dedicated lab-results/health-updates feature backing it.
+ */
 const MOCK_UPDATE_EVENTS: JourneyEvent[] = [
   {
     id: 'update-1',
@@ -81,14 +144,20 @@ const MOCK_UPDATE_EVENTS: JourneyEvent[] = [
   },
 ];
 
-export const MOCK_JOURNEY_EVENTS: JourneyEvent[] = [
-  ...MOCK_APPOINTMENT_EVENTS,
-  ...MOCK_CHECKIN_EVENTS,
-  ...MOCK_UPDATE_EVENTS,
-];
+/**
+ * Builds the full journey timeline: identity (real, from `profile`),
+ * appointments and check-ins (real, fetched with `citizenToken` — see
+ * fetchAppointmentEvents/fetchCheckinEvents above), and health updates
+ * (still mocked, see MOCK_UPDATE_EVENTS). Pass `citizenToken: null` (e.g.
+ * while auth is still loading) to skip the appointment/check-in fetches.
+ */
+export async function buildJourneyTimeline(profile: HealthProfile | null, citizenToken: string | null): Promise<JourneyEvent[]> {
+  const [appointmentEvents, checkinEvents] = citizenToken
+    ? await Promise.all([fetchAppointmentEvents(citizenToken), fetchCheckinEvents(citizenToken)])
+    : [[], []];
 
-export function buildJourneyTimeline(profile: HealthProfile | null): JourneyEvent[] {
-  const events = profile ? [...MOCK_JOURNEY_EVENTS, buildIdentityEvent(profile)] : [...MOCK_JOURNEY_EVENTS];
+  const events = [...appointmentEvents, ...checkinEvents, ...MOCK_UPDATE_EVENTS];
+  if (profile) events.push(buildIdentityEvent(profile));
 
   return events.sort((a, b) => {
     if (a.timestamp === null) return 1;
