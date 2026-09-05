@@ -8,6 +8,7 @@ import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
+import { DEV_TOOLS_ENABLED } from '@/constants/dev-tools';
 import { EGOV_SSO_AUTHORIZE_URL, getEgovLivenessRedirectUri, getEgovSsoRedirectUri } from '@/constants/egov-sso';
 import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
 import { startVerification } from '@/lib/egov-sso-client';
@@ -185,7 +186,7 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {__DEV__ && (
+        {DEV_TOOLS_ENABLED && (
           <>
             <Pressable
               onPress={() => router.push('/auth/dev-login')}

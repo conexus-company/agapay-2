@@ -5,6 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthColors } from '@/constants/auth-theme';
+import { DEV_TOOLS_ENABLED } from '@/constants/dev-tools';
 import { useHealthProfileSetup } from '@/contexts/health-profile-setup-context';
 import { quickLogin } from '@/lib/egov-sso-client';
 
@@ -22,7 +23,7 @@ export default function QuickLoginScreen() {
   const [result, setResult] = useState<RunState>({ status: 'idle' });
 
   // Hooks above run unconditionally; nothing below executes in production.
-  if (!__DEV__) {
+  if (!DEV_TOOLS_ENABLED) {
     return null;
   }
 
