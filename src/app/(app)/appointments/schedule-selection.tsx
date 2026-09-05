@@ -327,7 +327,7 @@ export default function ScheduleSelectionScreen() {
     }
 
     const citizenToken = resolveSsoSubjectId(session?.profile);
-    const bookingResult = await bookAppointment(draft, citizenToken);
+    const bookingResult = await bookAppointment(draft, citizenToken, session?.profile);
 
     setConfirming(false);
 
