@@ -8,13 +8,17 @@ import { AuthColors } from '@/constants/auth-theme';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import {
+  applyBookedSlots,
+  bookAppointment,
   confirmBooking,
+  fetchBookedSlots,
   formatBookingDate,
   getDefaultSelectedDate,
   getMockAvailableSchedule,
   type AvailableSchedule,
   type BookingDraft,
 } from '@/lib/appointments';
+import { resolveSsoSubjectId } from '@/lib/health-profile';
 import type { Doctor, FacilityHours } from '@/lib/health-navigation-types';
 
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
@@ -220,12 +224,15 @@ export default function ScheduleSelectionScreen() {
   const today = useMemo(() => toIsoDate(new Date()), []);
 
   useEffect(() => {
-    if (!doctor) return;
+    if (!doctor || !facilityId) return;
     const doctorId = doctor.id;
+    const currentFacilityId = facilityId;
     let cancelled = false;
 
-    // Simulated latency — no slot-availability backend exists yet (see
-    // src/lib/appointments.ts) but the loading state should still be real.
+    // Simulated latency for the mock day/hours grid (see
+    // src/lib/appointments.ts) — but which slots are already taken is real,
+    // fetched from api/appointments/availability+api.ts and overlaid once
+    // it resolves, so the initial paint isn't blocked on a network call.
     function loadSchedule() {
       setLoading(true);
       return setTimeout(() => {
@@ -234,6 +241,11 @@ export default function ScheduleSelectionScreen() {
         setSchedule(nextSchedule);
         setSelectedDate(getDefaultSelectedDate(nextSchedule));
         setLoading(false);
+
+        fetchBookedSlots(currentFacilityId, doctorId).then((booked) => {
+          if (cancelled || booked.size === 0) return;
+          setSchedule((current) => (current ? applyBookedSlots(current, booked) : current));
+        });
       }, MONTH_LOADING_DELAY_MS);
     }
 
@@ -247,7 +259,7 @@ export default function ScheduleSelectionScreen() {
     // on the object itself (rather than its stable id) would refetch forever;
     // facilityHours is memoized on its raw param string for the same reason.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doctor?.id, facilityHours]);
+  }, [doctor?.id, facilityId, facilityHours]);
 
   if (!doctor || !facilityId || !facilityName) {
     return <ErrorState message="We couldn't find the doctor or facility for this booking. Please go back and try again." />;
@@ -297,14 +309,32 @@ export default function ScheduleSelectionScreen() {
     setConfirming(true);
     setConfirmError(null);
 
-    const result = await confirmBooking(draft, session?.profile);
+    // The facility-hours gate lives in confirm+api.ts today, so it runs
+    // first — book+api.ts only persists a slot that's already passed it.
+    const smsResult = await confirmBooking(draft, session?.profile);
+
+    if (!smsResult.ok) {
+      const upstreamMessage =
+        smsResult.kind === 'upstream_error' && smsResult.status === 422 && smsResult.body && typeof smsResult.body === 'object'
+          ? (smsResult.body as Record<string, unknown>).error
+          : null;
+      setConfirming(false);
+      setConfirmError(
+        typeof upstreamMessage === 'string' ? upstreamMessage : "We couldn't confirm your appointment. Please try again."
+      );
+      scrollRef.current?.scrollToEnd({ animated: true });
+      return;
+    }
+
+    const citizenToken = resolveSsoSubjectId(session?.profile);
+    const bookingResult = await bookAppointment(draft, citizenToken);
 
     setConfirming(false);
 
-    if (!result.ok) {
+    if (!bookingResult.ok) {
       const upstreamMessage =
-        result.kind === 'upstream_error' && result.status === 422 && result.body && typeof result.body === 'object'
-          ? (result.body as Record<string, unknown>).error
+        bookingResult.kind === 'upstream_error' && bookingResult.status < 500 && bookingResult.body && typeof bookingResult.body === 'object'
+          ? (bookingResult.body as Record<string, unknown>).error
           : null;
       setConfirmError(
         typeof upstreamMessage === 'string' ? upstreamMessage : "We couldn't confirm your appointment. Please try again."
@@ -323,6 +353,7 @@ export default function ScheduleSelectionScreen() {
         facilityName: draft.facilityName,
         selectedDate: draft.selectedDate,
         selectedTime: draft.selectedTime,
+        referenceNumber: bookingResult.data.reference_number,
       },
     } as unknown as Href);
   };
